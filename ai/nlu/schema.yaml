@@ -1,0 +1,22 @@
+intents:
+  - irrigation_when
+  - seed_recommendation
+  - stress_risk
+
+slots:
+  crop:
+    type: enum
+    values: [paddy, rice, dhan, wheat, gehu, cotton, kapas]
+  sowing_date:
+    type: date
+    format: YYYY-MM-DD
+  location:
+    type: place
+  stage:
+    type: enum
+    values: [nursery, tillering, flowering, fruiting, harvest]
+
+languages:
+  - en
+  - hi
+
