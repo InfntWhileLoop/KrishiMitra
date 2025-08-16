@@ -6,6 +6,8 @@ import Dashboard from './pages/Dashboard';
 import AIAssistant from './pages/AIAssistant';
 import FarmerProfile from './pages/FarmerProfile';
 import Community from './pages/Marketplace';
+import IrrigationWeather from './pages/IrrigationWeather';
+import SeedVariety from './pages/SeedVariety';
 import MarketPrice from './pages/MarketPrice';
 import PestDisease from './pages/PestDisease';
 import GovernmentSchemes from './pages/GovernmentSchemes';
@@ -35,6 +37,8 @@ function AppContent() {
           <Route path="/ai-assistant" element={isAuthenticated ? <AIAssistant /> : <Navigate to="/auth" />} />
           <Route path="/profile" element={isAuthenticated ? <FarmerProfile /> : <Navigate to="/auth" />} />
           <Route path="/marketplace" element={isAuthenticated ? <Community /> : <Navigate to="/auth" />} />
+          <Route path="/irrigation-weather" element={isAuthenticated ? <IrrigationWeather /> : <Navigate to="/auth" />} />
+          <Route path="/seed-variety" element={isAuthenticated ? <SeedVariety /> : <Navigate to="/auth" />} />
           <Route path="/market-price" element={isAuthenticated ? <MarketPrice /> : <Navigate to="/auth" />} />
           <Route path="/pest-disease" element={isAuthenticated ? <PestDisease /> : <Navigate to="/auth" />} />
           <Route path="/schemes" element={isAuthenticated ? <GovernmentSchemes /> : <Navigate to="/auth" />} />

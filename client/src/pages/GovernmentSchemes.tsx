@@ -1,196 +1,151 @@
 import React, { useState } from 'react';
 import Layout from '../components/Layout';
-import { FileText, DollarSign, Users, CheckCircle, ExternalLink, Phone } from 'lucide-react';
+import { DollarSign, Phone, FileText, CheckCircle } from 'lucide-react';
 
 const GovernmentSchemes: React.FC = () => {
-  const [selectedScheme, setSelectedScheme] = useState<any>(null);
+  const [expandedScheme, setExpandedScheme] = useState<number | null>(null);
 
   const schemes = [
     {
       id: 1,
-      name: 'PM-KISAN (₹6,000/year)',
-      type: 'Direct Money',
-      description: 'Get ₹6,000 per year directly in your bank account',
+      name: 'PM-KISAN',
       amount: '₹6,000/year',
-      eligibility: 'Small farmers with up to 2 hectares land',
-      howToApply: 'Visit nearest CSC center or apply online',
-      documents: ['Land papers', 'Aadhaar card', 'Bank account'],
-      phone: '155261',
-      status: 'active'
+      description: 'Free money every year',
+      details: 'Government gives ₹6,000 directly to your bank account every year.',
+      whoCanApply: 'Farmers with land up to 2 hectares',
+      howToApply: 'Go to bank or CSC center',
+      documents: 'Land papers + Aadhaar + Bank account',
+      helpline: '155261'
     },
     {
       id: 2,
       name: 'Kisan Credit Card',
-      type: 'Loan',
-      description: 'Get loan up to ₹3 lakhs for farming needs',
-      amount: 'Up to ₹3,00,000',
-      eligibility: 'All farmers with land documents',
-      howToApply: 'Visit any bank branch',
-      documents: ['Land papers', 'Aadhaar card', 'Bank account'],
-      phone: '1800-180-1551',
-      status: 'active'
+      amount: 'Up to ₹3 Lakh',
+      description: 'Easy loan for farming',
+      details: 'Get loan up to ₹3 lakh for seeds, fertilizer, and farming needs.',
+      whoCanApply: 'All farmers with land',
+      howToApply: 'Visit any bank',
+      documents: 'Land papers + Aadhaar + Bank account',
+      helpline: '1800-180-1551'
     },
     {
       id: 3,
       name: 'Crop Insurance',
-      type: 'Insurance',
-      description: 'Protect your crops from weather damage',
-      amount: 'Very low premium',
-      eligibility: 'All farmers growing crops',
-      howToApply: 'Through bank or insurance company',
-      documents: ['Land papers', 'Sowing certificate'],
-      phone: '1800-200-7710',
-      status: 'active'
+      amount: 'Very low cost',
+      description: 'Protect crops from damage',
+      details: 'If crops get damaged by weather, government pays you money.',
+      whoCanApply: 'All farmers',
+      howToApply: 'Through bank or insurance office',
+      documents: 'Land papers + Crop details',
+      helpline: '1800-200-7710'
     },
     {
       id: 4,
-      name: 'Soil Health Card',
-      type: 'Free Service',
-      description: 'Free soil testing and fertilizer advice',
+      name: 'Free Soil Testing',
       amount: 'Completely Free',
-      eligibility: 'All farmers',
+      description: 'Know what your soil needs',
+      details: 'Government tests your soil for free and tells you which fertilizer to use.',
+      whoCanApply: 'All farmers',
       howToApply: 'Contact agriculture officer',
-      documents: ['Land papers'],
-      phone: '1800-180-1551',
-      status: 'active'
+      documents: 'Just land papers',
+      helpline: '1800-180-1551'
     }
   ];
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'Direct Money':
-        return 'bg-green-100 text-green-800';
-      case 'Loan':
-        return 'bg-blue-100 text-blue-800';
-      case 'Insurance':
-        return 'bg-purple-100 text-purple-800';
-      case 'Free Service':
-        return 'bg-orange-100 text-orange-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'Direct Money':
-        return DollarSign;
-      case 'Loan':
-        return DollarSign;
-      case 'Insurance':
-        return FileText;
-      case 'Free Service':
-        return Users;
-      default:
-        return FileText;
-    }
+  const toggleExpand = (id: number) => {
+    setExpandedScheme(expandedScheme === id ? null : id);
   };
 
   return (
     <Layout>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-white">
-          <h1 className="text-2xl font-bold mb-2">Government Help for Farmers</h1>
-          <p className="text-indigo-100">Money, loans, and free services from government</p>
+        {/* Simple Header */}
+        <div className="bg-blue-600 rounded-xl p-6 text-white text-center">
+          <h1 className="text-2xl font-bold mb-2">Government Help</h1>
+          <p className="text-blue-100">Free money and services for farmers</p>
         </div>
 
-        {/* Scheme Cards */}
+        {/* Schemes List */}
         <div className="space-y-4">
-          {schemes.map((scheme) => {
-            const TypeIcon = getTypeIcon(scheme.type);
-            return (
-              <div key={scheme.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-start space-x-4">
-                    <div className={`${getTypeColor(scheme.type)} p-3 rounded-lg`}>
-                      <TypeIcon className="h-6 w-6" />
+          {schemes.map((scheme) => (
+            <div key={scheme.id} className="bg-white rounded-xl shadow-sm border-2 border-gray-100">
+              {/* Scheme Header - Always Visible */}
+              <div 
+                className="p-6 cursor-pointer"
+                onClick={() => toggleExpand(scheme.id)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="bg-green-100 p-3 rounded-full">
+                      <DollarSign className="h-6 w-6 text-green-600" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-gray-900 mb-1">{scheme.name}</h3>
-                      <p className="text-gray-600 mb-2">{scheme.description}</p>
-                      <div className="flex items-center space-x-3">
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getTypeColor(scheme.type)}`}>
-                          {scheme.type}
-                        </span>
-                        <span className="text-green-600 font-bold">{scheme.amount}</span>
-                      </div>
+                      <h3 className="text-xl font-bold text-gray-900">{scheme.name}</h3>
+                      <p className="text-gray-600">{scheme.description}</p>
+                      <p className="text-green-600 font-bold text-lg">{scheme.amount}</p>
                     </div>
                   </div>
-                  <CheckCircle className="h-6 w-6 text-green-500" />
+                  <div className="text-2xl text-gray-400">
+                    {expandedScheme === scheme.id ? '−' : '+'}
+                  </div>
                 </div>
+              </div>
 
-                {selectedScheme?.id === scheme.id ? (
-                  <div className="space-y-4 border-t border-gray-200 pt-4">
-                    <div>
-                      <h4 className="font-bold text-gray-900 mb-2">Who can apply:</h4>
-                      <p className="text-gray-700">{scheme.eligibility}</p>
+              {/* Expanded Details */}
+              {expandedScheme === scheme.id && (
+                <div className="px-6 pb-6 border-t border-gray-100">
+                  <div className="space-y-4 mt-4">
+                    {/* What is it */}
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <h4 className="font-bold text-blue-900 mb-2">What is this?</h4>
+                      <p className="text-blue-800">{scheme.details}</p>
                     </div>
-                    
-                    <div>
-                      <h4 className="font-bold text-gray-900 mb-2">How to apply:</h4>
-                      <p className="text-gray-700">{scheme.howToApply}</p>
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-bold text-gray-900 mb-2">Documents needed:</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {scheme.documents.map((doc, index) => (
-                          <span key={index} className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm">
-                            {doc}
-                          </span>
-                        ))}
+
+                    {/* Simple Info Grid */}
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <h4 className="font-bold text-gray-900 mb-1">Who can apply?</h4>
+                        <p className="text-gray-700">{scheme.whoCanApply}</p>
+                      </div>
+                      
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <h4 className="font-bold text-gray-900 mb-1">How to apply?</h4>
+                        <p className="text-gray-700">{scheme.howToApply}</p>
+                      </div>
+                      
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <h4 className="font-bold text-gray-900 mb-1">What to bring?</h4>
+                        <p className="text-gray-700">{scheme.documents}</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2 bg-blue-50 p-3 rounded-lg">
-                      <Phone className="h-5 w-5 text-blue-600" />
-                      <span className="text-blue-800 font-medium">Help: {scheme.phone}</span>
+                    {/* Help Number */}
+                    <div className="bg-green-50 p-4 rounded-lg flex items-center space-x-3">
+                      <Phone className="h-5 w-5 text-green-600" />
+                      <div>
+                        <p className="font-bold text-green-900">Need help?</p>
+                        <p className="text-green-800 text-lg font-bold">{scheme.helpline}</p>
+                      </div>
                     </div>
 
-                    <div className="flex space-x-3">
-                      <button className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors font-medium flex items-center space-x-2">
-                        <span>Apply Now</span>
-                        <ExternalLink className="h-4 w-4" />
-                      </button>
-                      <button 
-                        onClick={() => setSelectedScheme(null)}
-                        className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-                      >
-                        Close Details
-                      </button>
-                    </div>
+                    {/* Apply Button */}
+                    <button className="w-full bg-blue-600 text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-blue-700 transition-colors">
+                      Apply Now
+                    </button>
                   </div>
-                ) : (
-                  <button
-                    onClick={() => setSelectedScheme(scheme)}
-                    className="w-full bg-gray-50 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-100 transition-colors font-medium"
-                  >
-                    View Details & Apply
-                  </button>
-                )}
-              </div>
-            );
-          })}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
 
-        {/* Help Section */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-          <h2 className="text-xl font-bold text-blue-900 mb-4">Need Help?</h2>
-          <div className="space-y-3">
-            <div className="flex items-center space-x-3">
-              <Phone className="h-5 w-5 text-blue-600" />
-              <span className="text-blue-800">Call Kisan Call Center: <strong>1800-180-1551</strong></span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Users className="h-5 w-5 text-blue-600" />
-              <span className="text-blue-800">Visit nearest CSC center or bank</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <FileText className="h-5 w-5 text-blue-600" />
-              <span className="text-blue-800">Keep Aadhaar card and land papers ready</span>
-            </div>
-          </div>
+        {/* Simple Help Section */}
+        <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6 text-center">
+          <FileText className="h-8 w-8 text-yellow-600 mx-auto mb-3" />
+          <h2 className="text-lg font-bold text-yellow-900 mb-2">Need Help?</h2>
+          <p className="text-yellow-800 mb-3">Call this number for any help</p>
+          <p className="text-2xl font-bold text-yellow-900">1800-180-1551</p>
+          <p className="text-yellow-700 text-sm mt-2">Free call from any phone</p>
         </div>
       </div>
     </Layout>
