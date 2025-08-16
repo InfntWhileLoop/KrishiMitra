@@ -1,0 +1,12 @@
+.venv/
+artifacts/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+*.pyd
+*.tflite
+*.bin
+*.pt
+*.log
+

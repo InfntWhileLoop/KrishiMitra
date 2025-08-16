@@ -1,0 +1,27 @@
+{"text": "wheat irrigation in Jaipur", "intent": "irrigation_when", "spans": [{"slot": "crop", "start": 0, "end": 5}, {"slot": "location", "start": 20, "end": 26}]}
+{"text": "rice irrigation in Pune", "intent": "irrigation_when", "spans": [{"slot": "crop", "start": 0, "end": 4}, {"slot": "location", "start": 19, "end": 23}]}
+{"text": "paddy irrigation in Patna", "intent": "irrigation_when", "spans": [{"slot": "crop", "start": 0, "end": 5}, {"slot": "location", "start": 20, "end": 25}]}
+{"text": "gehu irrigation in Delhi", "intent": "irrigation_when", "spans": [{"slot": "crop", "start": 0, "end": 4}, {"slot": "location", "start": 19, "end": 24}]}
+{"text": "kapas irrigation in Jaipur", "intent": "irrigation_when", "spans": [{"slot": "crop", "start": 0, "end": 5}, {"slot": "location", "start": 20, "end": 26}]}
+{"text": "irrigation kab for wheat in Jaipur", "intent": "irrigation_when", "spans": [{"slot": "crop", "start": 19, "end": 24}, {"slot": "location", "start": 28, "end": 34}]}
+{"text": "kab sinchai for rice in Pune", "intent": "irrigation_when", "spans": [{"slot": "crop", "start": 16, "end": 20}, {"slot": "location", "start": 24, "end": 28}]}
+{"text": "Jaipur me gehu irrigation kab", "intent": "irrigation_when", "spans": [{"slot": "location", "start": 0, "end": 6}, {"slot": "crop", "start": 10, "end": 14}]}
+{"text": "wheat sowing_date 2024-06-15 irrigation Jaipur", "intent": "irrigation_when", "spans": [{"slot": "crop", "start": 0, "end": 5}, {"slot": "sowing_date", "start": 18, "end": 28}, {"slot": "location", "start": 40, "end": 46}]}
+
+{"text": "recommend seed for wheat at nursery Jaipur", "intent": "seed_recommendation", "spans": [{"slot": "crop", "start": 19, "end": 24}, {"slot": "stage", "start": 28, "end": 35}, {"slot": "location", "start": 36, "end": 42}]}
+{"text": "seed advice for rice at tillering Pune", "intent": "seed_recommendation", "spans": [{"slot": "crop", "start": 16, "end": 20}, {"slot": "stage", "start": 24, "end": 33}, {"slot": "location", "start": 34, "end": 38}]}
+{"text": "kapas seed suggestion at flowering Patna", "intent": "seed_recommendation", "spans": [{"slot": "crop", "start": 0, "end": 5}, {"slot": "stage", "start": 25, "end": 34}, {"slot": "location", "start": 35, "end": 40}]}
+{"text": "paddy beej salah at fruiting Jaipur", "intent": "seed_recommendation", "spans": [{"slot": "crop", "start": 0, "end": 5}, {"slot": "stage", "start": 20, "end": 28}, {"slot": "location", "start": 29, "end": 35}]}
+{"text": "gehu seed recommend at nursery Delhi", "intent": "seed_recommendation", "spans": [{"slot": "crop", "start": 0, "end": 4}, {"slot": "stage", "start": 23, "end": 30}, {"slot": "location", "start": 31, "end": 36}]}
+{"text": "recommend seeds rice at harvest Pune", "intent": "seed_recommendation", "spans": [{"slot": "crop", "start": 16, "end": 20}, {"slot": "stage", "start": 24, "end": 31}, {"slot": "location", "start": 32, "end": 36}]}
+{"text": "seed salah for cotton at nursery Jaipur", "intent": "seed_recommendation", "spans": [{"slot": "crop", "start": 15, "end": 21}, {"slot": "stage", "start": 25, "end": 32}, {"slot": "location", "start": 33, "end": 39}]}
+{"text": "kapas ke liye seed at flowering Delhi", "intent": "seed_recommendation", "spans": [{"slot": "crop", "start": 0, "end": 5}, {"slot": "stage", "start": 22, "end": 31}, {"slot": "location", "start": 32, "end": 37}]}
+
+{"text": "stress risk for wheat in Jaipur", "intent": "stress_risk", "spans": [{"slot": "crop", "start": 16, "end": 21}, {"slot": "location", "start": 25, "end": 31}]}
+{"text": "stress risk for rice at tillering Pune", "intent": "stress_risk", "spans": [{"slot": "crop", "start": 16, "end": 20}, {"slot": "stage", "start": 24, "end": 33}, {"slot": "location", "start": 34, "end": 38}]}
+{"text": "stress risk hai for paddy in Delhi", "intent": "stress_risk", "spans": [{"slot": "crop", "start": 20, "end": 25}, {"slot": "location", "start": 29, "end": 34}]}
+{"text": "stress risk for kapas at harvest Patna", "intent": "stress_risk", "spans": [{"slot": "crop", "start": 16, "end": 21}, {"slot": "stage", "start": 25, "end": 32}, {"slot": "location", "start": 33, "end": 38}]}
+{"text": "stress risk for gehu in Delhi", "intent": "stress_risk", "spans": [{"slot": "crop", "start": 16, "end": 20}, {"slot": "location", "start": 24, "end": 29}]}
+{"text": "stress risk for rice at fruiting Jaipur", "intent": "stress_risk", "spans": [{"slot": "crop", "start": 16, "end": 20}, {"slot": "stage", "start": 24, "end": 32}, {"slot": "location", "start": 33, "end": 39}]}
+{"text": "stress risk for kapas in Pune", "intent": "stress_risk", "spans": [{"slot": "crop", "start": 16, "end": 21}, {"slot": "location", "start": 25, "end": 29}]}
+{"text": "stress risk for dhan in Jaipur", "intent": "stress_risk", "spans": [{"slot": "crop", "start": 16, "end": 20}, {"slot": "location", "start": 24, "end": 30}]}
