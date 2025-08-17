@@ -28,7 +28,7 @@ interface Variety {
 const SeedVariety: React.FC = () => {
   const [selectedVarieties, setSelectedVarieties] = useState<Set<number>>(new Set());
   const [expandedExplanation, setExpandedExplanation] = useState<number | null>(null);
-  const [showCompareDrawer, setShowCompareDrawer] = useState(false);
+  const [showCompareModal, setShowCompareModal] = useState(false);
   const [showEvidenceModal, setShowEvidenceModal] = useState<number | null>(null);
   const [showConfidenceModal, setShowConfidenceModal] = useState(false);
   const [currentSettings, setCurrentSettings] = useState({
@@ -129,9 +129,9 @@ const SeedVariety: React.FC = () => {
     setSelectedVarieties(newSelected);
     
     if (newSelected.size >= 2) {
-      setShowCompareDrawer(true);
+      setShowCompareModal(true);
     } else if (newSelected.size === 0) {
-      setShowCompareDrawer(false);
+      setShowCompareModal(false);
     }
   };
 
@@ -168,6 +168,164 @@ const SeedVariety: React.FC = () => {
   const getRankColor = (index: number) => {
     const colors = ['bg-green-500', 'bg-blue-500', 'bg-yellow-500'];
     return colors[index] || 'bg-gray-500';
+  };
+
+  const CompareModal = () => {
+    if (!showCompareModal || selectedVarieties.size < 2) return null;
+
+    const selectedVarietiesData = Array.from(selectedVarieties).map(id => 
+      varieties.find(v => v.id === id)
+    ).filter(Boolean) as Variety[];
+
+    const features = ['Score', 'Yield (t/ha)', 'Maturity (days)', 'Confidence (%)'];
+    
+    const getFeatureValue = (variety: Variety, feature: string) => {
+      switch (feature) {
+        case 'Score': return variety.score * 100;
+        case 'Yield (t/ha)': return variety.yield[1];
+        case 'Maturity (days)': return 200 - variety.maturity; // Invert for better visualization
+        case 'Confidence (%)': return variety.confidence;
+        default: return 0;
+      }
+    };
+
+    const maxValues = features.map(feature => 
+      Math.max(...selectedVarietiesData.map(v => getFeatureValue(v, feature)))
+    );
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-screen overflow-y-auto">
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-gray-800 flex items-center">
+                <BarChart3 className="h-5 w-5 text-blue-500 mr-3" />
+                Compare Varieties
+              </h3>
+              <button 
+                onClick={() => {
+                  setShowCompareModal(false);
+                  setSelectedVarieties(new Set());
+                }}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="space-y-8">
+              {/* Bar Chart Comparison */}
+              <div className="bg-gray-50 rounded-lg p-6">
+                <h4 className="text-lg font-semibold mb-4">Feature Comparison</h4>
+                {features.map((feature, featureIndex) => (
+                  <div key={feature} className="mb-6">
+                    <h5 className="text-sm font-medium text-gray-700 mb-2">{feature}</h5>
+                    <div className="space-y-2">
+                      {selectedVarietiesData.map((variety, varietyIndex) => {
+                        const value = getFeatureValue(variety, feature);
+                        const maxValue = maxValues[featureIndex];
+                        const percentage = (value / maxValue) * 100;
+                        const colors = ['bg-green-500', 'bg-blue-500', 'bg-yellow-500'];
+                        
+                        return (
+                          <div key={variety.id} className="flex items-center">
+                            <div className="w-24 text-sm text-gray-600 mr-4">{variety.name}</div>
+                            <div className="flex-1 bg-gray-200 rounded-full h-4 mr-4">
+                              <div 
+                                className={`h-4 rounded-full ${colors[varietyIndex % colors.length]}`}
+                                style={{ width: `${percentage}%` }}
+                              ></div>
+                            </div>
+                            <div className="w-16 text-sm font-medium text-gray-800">
+                              {feature === 'Score' ? `${(value/100).toFixed(2)}` : 
+                               feature === 'Yield (t/ha)' ? `${value}` :
+                               feature === 'Maturity (days)' ? `${200-value}` :
+                               `${value}%`}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Detailed Comparison Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse border border-gray-300">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="border border-gray-300 p-3 text-left">Feature</th>
+                      {selectedVarietiesData.map(variety => (
+                        <th key={variety.id} className="border border-gray-300 p-3 text-center">
+                          {variety.name}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-gray-300 p-3 font-medium">Score</td>
+                      {selectedVarietiesData.map(variety => (
+                        <td key={variety.id} className="border border-gray-300 p-3 text-center">
+                          {variety.score.toFixed(2)}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="border border-gray-300 p-3 font-medium">Yield Range</td>
+                      {selectedVarietiesData.map(variety => (
+                        <td key={variety.id} className="border border-gray-300 p-3 text-center">
+                          {variety.yield[0]}–{variety.yield[1]} t/ha
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="border border-gray-300 p-3 font-medium">Maturity</td>
+                      {selectedVarietiesData.map(variety => (
+                        <td key={variety.id} className="border border-gray-300 p-3 text-center">
+                          {variety.maturity} days
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="border border-gray-300 p-3 font-medium">Confidence</td>
+                      {selectedVarietiesData.map(variety => (
+                        <td key={variety.id} className="border border-gray-300 p-3 text-center">
+                          {variety.confidence}%
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="border border-gray-300 p-3 font-medium">Key Traits</td>
+                      {selectedVarietiesData.map(variety => (
+                        <td key={variety.id} className="border border-gray-300 p-3">
+                          <div className="flex flex-wrap gap-1">
+                            {variety.traits.map((trait, index) => (
+                              <span key={index} className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
+                                {trait}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="border border-gray-300 p-3 font-medium">Price</td>
+                      {selectedVarietiesData.map(variety => (
+                        <td key={variety.id} className="border border-gray-300 p-3 text-center">
+                          {variety.dealer.price}
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -639,59 +797,8 @@ const SeedVariety: React.FC = () => {
           </div>
         </div>
 
-        {/* Compare Drawer */}
-        {showCompareDrawer && (
-          <div className="fixed inset-x-0 bottom-0 bg-white shadow-2xl z-50 rounded-t-2xl">
-            <div className="max-w-7xl mx-auto p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-gray-800 flex items-center">
-                  <BarChart3 className="h-5 w-5 text-blue-500 mr-3" />
-                  Compare Varieties
-                </h3>
-                <button 
-                  onClick={() => {
-                    setShowCompareDrawer(false);
-                    setSelectedVarieties(new Set());
-                  }}
-                  className="text-gray-500 hover:text-gray-700 text-2xl"
-                >
-                  ×
-                </button>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {Array.from(selectedVarieties).map(varietyId => {
-                  const variety = varieties.find(v => v.id === varietyId);
-                  if (!variety) return null;
-                  
-                  return (
-                    <div key={varietyId} className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
-                      <h4 className="font-bold text-lg mb-3">{variety.name}</h4>
-                      <div className="space-y-3">
-                        <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Score:</span>
-                          <span className="font-semibold">{variety.score.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Yield:</span>
-                          <span className="font-semibold">{variety.yield[0]}–{variety.yield[1]} t/ha</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Maturity:</span>
-                          <span className="font-semibold">{variety.maturity} days</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Confidence:</span>
-                          <span className="font-semibold">{variety.confidence}%</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Compare Modal */}
+        <CompareModal />
 
         {/* Evidence Modal */}
         {showEvidenceModal && (
@@ -876,26 +983,6 @@ const SeedVariety: React.FC = () => {
       </div>
     </Layout>
   );
-};
-
-// Helper functions
-const getBorderColor = (index: number) => {
-  const colors = ['border-green-500', 'border-blue-400', 'border-yellow-400'];
-  return colors[index] || 'border-gray-400';
-};
-
-const getGradientColor = (index: number) => {
-  const colors = [
-    'from-green-50 to-blue-50',
-    'from-blue-50 to-indigo-50',
-    'from-yellow-50 to-orange-50'
-  ];
-  return colors[index] || 'from-gray-50 to-gray-100';
-};
-
-const getRankColor = (index: number) => {
-  const colors = ['bg-green-500', 'bg-blue-500', 'bg-yellow-500'];
-  return colors[index] || 'bg-gray-500';
 };
 
 export default SeedVariety;
