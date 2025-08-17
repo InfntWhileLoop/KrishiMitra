@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
-import { Mic, Cloud, TrendingUp, MessageSquare, Calendar, Users, Leaf, ChevronRight } from 'lucide-react';
+import { Mic, Droplets, TrendingUp, MessageSquare, Calendar, Users, Leaf, ChevronRight, BedIcon as SeedIcon } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -10,11 +10,18 @@ const Dashboard: React.FC = () => {
 
   const quickAccessTiles = [
     {
-      title: 'Weather',
-      icon: Cloud,
+      title: 'Irrigation & Weather',
+      icon: Droplets,
       color: 'blue',
-      description: 'Today: 28°C, Partly Cloudy',
-      onClick: () => navigate('/weather-market')
+      description: 'Soil moisture: 65%, No irrigation needed',
+      onClick: () => navigate('/irrigation-weather')
+    },
+    {
+      title: 'Seed Variety',
+      icon: Leaf,
+      color: 'green',
+      description: 'AI recommendations for your field',
+      onClick: () => navigate('/seed-variety')
     },
     {
       title: 'Market Prices',
