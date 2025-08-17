@@ -1,3 +1,42 @@
+# Agri Assistant NLU (Offline, Minimal)
+
+## Project Overview
+This repository contains a complete offline Natural Language Understanding (NLU) system for an agriculture assistant, 
+along with machine learning models for agricultural decision support. The system is designed to run entirely offline 
+on edge devices.
+
+## Architecture Overview
+
+### Core Components:
+
+1. **NLU Module** (`ai/nlu/`): Natural Language Understanding for intent classification and slot filling
+   - Handles 3 intents: irrigation timing, seed recommendations, and stress risk assessment
+   - Processes 4 slot types: crop, sowing date, location, and growth stage
+   - Supports English + Indic language code-switching
+   - Uses TinyBERT for efficient inference
+
+2. **Packaging Module** (`ai/packaging/`): Edge deployment and runtime
+   - TFLite model export for mobile/edge devices
+   - CLI runtime for offline inference
+   - Performance benchmarking tools
+
+3. **Data Pipeline** (`ai/data/`): Data management and feature engineering
+   - Raw data storage for weather, soil, and field information
+   - Feature engineering pipeline for ML model training
+   - Data quality validation and schema enforcement
+
+4. **Testing** (`ai/tests/`): Comprehensive test suite
+   - Unit tests for all modules
+   - Integration tests for end-to-end workflows
+   - Mock data for offline testing
+
+### Key Features:
+- **Offline-First**: All components work without internet connectivity
+- **Multilingual**: English + Indic language support with code-switching
+- **Edge-Optimized**: TFLite export with int8 quantization for mobile devices
+- **Modular Design**: Clean separation of concerns for easy maintenance
+- **Comprehensive Testing**: Full test coverage for reliability
+
 ## Agri Assistant NLU (Offline, Minimal)
 
 Joint intent and slot model for an agriculture assistant.

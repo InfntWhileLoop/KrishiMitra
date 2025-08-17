@@ -1,22 +1,57 @@
+# =============================================================================
+# NLU Schema Definition - Intent and Slot Specifications
+# =============================================================================
+# This file defines the complete schema for the Natural Language Understanding
+# system, specifying:
+#
+# 1. Intents: The three main user intents the system can recognize
+#    - irrigation_when: User asking about irrigation timing
+#    - seed_recommendation: User seeking seed variety recommendations
+#    - stress_risk: User inquiring about crop stress or risk assessment
+#
+# 2. Slots: The four types of information the system can extract
+#    - crop: Agricultural crop type (enum with common crop names)
+#    - sowing_date: When the crop was/will be sown (date format)
+#    - location: Geographic location or field identifier (place)
+#    - stage: Growth stage of the crop (enum with growth phases)
+#
+# 3. Languages: Support for English and Indic languages with code-switching
+#    - Primary: English for technical terms and structure
+#    - Secondary: Indic languages (Hindi, etc.) for natural expression
+#    - Code-switching: Mixed language usage is supported and expected
+#
+# Usage: This schema is loaded by training, evaluation, and inference modules
+# to ensure consistent intent/slot handling across the entire system.
+# =============================================================================
+
 intents:
-  - irrigation_when
-  - seed_recommendation
-  - stress_risk
+  irrigation_when: "User asking when to irrigate their crop"
+  seed_recommendation: "User seeking seed variety recommendations"
+  stress_risk: "User inquiring about crop stress or risk assessment"
 
 slots:
   crop:
-    type: enum
-    values: [paddy, rice, dhan, wheat, gehu, cotton, kapas]
+    type: "enum"
+    description: "Agricultural crop type"
+    values: ["paddy", "rice", "dhan", "wheat", "gehu", "cotton", "kapas"]
+  
   sowing_date:
-    type: date
-    format: YYYY-MM-DD
+    type: "date"
+    description: "When the crop was or will be sown"
+    format: "YYYY-MM-DD or relative dates (today, tomorrow, kal)"
+  
   location:
-    type: place
+    type: "place"
+    description: "Geographic location, district, or field identifier"
+    examples: ["Jaipur", "Punjab", "Field7", "North Zone"]
+  
   stage:
-    type: enum
-    values: [nursery, tillering, flowering, fruiting, harvest]
+    type: "enum"
+    description: "Current growth stage of the crop"
+    values: ["nursery", "tillering", "flowering", "fruiting", "harvest"]
 
 languages:
-  - en
-  - hi
+  primary: "en"
+  secondary: ["hi", "pa", "bn"]  # Hindi, Punjabi, Bengali
+  code_switch: true  # Allow mixed language usage
 

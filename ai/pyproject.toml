@@ -1,39 +1,114 @@
+# =============================================================================
+# Agri Assistant NLU - Project Configuration
+# =============================================================================
+# This file defines the project metadata, dependencies, and build configuration
+# for the offline NLU system. It uses modern Python packaging standards with
+# dependency groups for different use cases.
+#
+# Project Structure:
+# - Core NLU functionality with PyTorch + Transformers
+# - Edge deployment with TFLite export
+# - Comprehensive testing and development tools
+# - Agricultural domain-specific ML models
+# =============================================================================
+
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "agri-assistant-nlu"
-version = "0.1.0"
-description = "Minimal offline joint intent+slot NLU for an agri assistant"
+dynamic = ["version"]
+description = "Offline Natural Language Understanding system for agriculture assistant"
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.11"
-authors = [{ name = "Agri NLU" }]
-dependencies = [
-  "pyyaml>=6.0",
-  "click>=8.1",
+authors = [
+    {name = "Agri Assistant Team", email = "team@agri-assistant.com"},
+]
+keywords = ["nlp", "nlu", "agriculture", "offline", "edge", "tflite"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
+# Core dependencies for NLU functionality
+dependencies = [
+    "torch>=2.0.0",           # PyTorch for model training and inference
+    "transformers>=4.30.0",   # Hugging Face Transformers for BERT models
+    "datasets>=2.12.0",       # Dataset handling and preprocessing
+    "numpy>=1.24.0",          # Numerical computing
+    "pandas>=2.0.0",          # Data manipulation and analysis
+    "scikit-learn>=1.3.0",    # Machine learning utilities
+    "pyyaml>=6.0",            # YAML configuration files
+    "tqdm>=4.65.0",           # Progress bars for long operations
+]
+
+# Development dependencies for testing and code quality
 [project.optional-dependencies]
 dev = [
-  "pytest>=7.4",
+    "pytest>=7.4.0",          # Testing framework
+    "pytest-cov>=4.1.0",      # Test coverage reporting
+    "ruff>=0.1.0",            # Fast Python linter
+    "black>=23.7.0",          # Code formatting
+    "mypy>=1.5.0",            # Static type checking
+    "pre-commit>=3.3.0",      # Git hooks for code quality
 ]
+
+# Training dependencies for ML model development
 train = [
-  "torch>=2.2",
-  "transformers>=4.41",
-  "numpy>=1.26",
-  "tqdm>=4.66",
-  "regex>=2024.5.15",
-  "scikit-learn>=1.4",
+    "lightgbm>=4.0.0",        # Gradient boosting for tabular data
+    "xgboost>=2.0.0",         # Extreme gradient boosting
+    "optuna>=3.2.0",          # Hyperparameter optimization
+    "matplotlib>=3.7.0",      # Plotting and visualization
+    "seaborn>=0.12.0",        # Statistical data visualization
+    "shap>=0.42.0",           # Model interpretability
 ]
+
+# Edge deployment dependencies
+edge = [
+    "tensorflow>=2.13.0",     # TensorFlow for TFLite export
+    "onnx>=1.14.0",           # ONNX format for model interchange
+    "onnxruntime>=1.15.0",    # ONNX runtime for inference
+]
+
+# All dependencies combined
+all = [
+    "agri-assistant-nlu[dev,train,edge]",
+]
+
+[project.urls]
+Homepage = "https://github.com/InfntWhileLoop/KrishiMitra"
+Repository = "https://github.com/InfntWhileLoop/KrishiMitra.git"
+Documentation = "https://github.com/InfntWhileLoop/KrishiMitra#readme"
+Issues = "https://github.com/InfntWhileLoop/KrishiMitra/issues"
+
+# Tool configuration for development
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+select = ["E", "F", "I", "N", "W", "B", "C4", "UP"]
+ignore = ["E501", "B008", "C901"]
+
+[tool.black]
+target-version = ['py311']
+line-length = 88
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["."]
-filterwarnings = [
-  "ignore::UserWarning",
-]
-
-[tool.setuptools]
-packages = ["nlu"]
+testpaths = ["tests", "ai/tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
 
