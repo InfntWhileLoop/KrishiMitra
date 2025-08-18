@@ -52,6 +52,28 @@ type Farmer = {
 const nowTime = () =>
   new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
+/** Listing image fallbacks by keyword */
+const FALLBACK_IMAGES: Record<string, string> = {
+  tractor:
+    "https://images.unsplash.com/photo-1560335301-d0ee9b4a2b9f?q=80&w=1200&auto=format&fit=crop",
+  seeds:
+    "https://images.unsplash.com/photo-1524591741311-8fdc4b3e6f45?q=80&w=1200&auto=format&fit=crop",
+  pump:
+    "https://images.unsplash.com/photo-1521207418485-99c705420785?q=80&w=1200&auto=format&fit=crop",
+  water:
+    "https://images.unsplash.com/photo-1542228262-3d663b306a55?q=80&w=1200&auto=format&fit=crop",
+  generic:
+    "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop",
+};
+
+function getFallbackByTitle(title: string): string {
+  const t = title.toLowerCase();
+  if (t.includes("tractor")) return FALLBACK_IMAGES.tractor;
+  if (t.includes("seed")) return FALLBACK_IMAGES.seeds;
+  if (t.includes("pump") || t.includes("water")) return FALLBACK_IMAGES.pump;
+  return FALLBACK_IMAGES.generic;
+}
+
 /** ---------- Component ---------- */
 const Community: React.FC = () => {
   /** Seed farmers (DM list) */
@@ -631,9 +653,14 @@ const Community: React.FC = () => {
                 <div className="h-36 w-full bg-gray-100 overflow-hidden">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={o.photoUrl}
+                    src={o.photoUrl || getFallbackByTitle(o.title)}
                     alt={o.title}
                     className="h-full w-full object-cover"
+                    onError={(e) => {
+                      const target = e.currentTarget as HTMLImageElement;
+                      const fallback = getFallbackByTitle(o.title);
+                      if (target.src !== fallback) target.src = fallback;
+                    }}
                   />
                 </div>
                 <div className="p-3">

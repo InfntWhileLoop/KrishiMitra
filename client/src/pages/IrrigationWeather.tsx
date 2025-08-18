@@ -5,6 +5,7 @@ import {
   Users, Flashlight, Zap, GaugeCircle, Play, Pause, ShieldAlert
 } from "lucide-react";
 import { AlertTriangle as _AlertTriangle } from "lucide-react";
+import Layout from "../components/Layout";
 
 /**
  * Single-file irrigation page with these inline components:
@@ -637,65 +638,92 @@ const IrrigationPage: React.FC = () => {
   // Keep last submitted form (for calculators)
   const [lastForm, setLastForm] = useState<IrrigationForm | null>(null);
 
-  const fetchYield = async (f: IrrigationForm) => {
-    const res = await fetch(`${API_BASE}/predict/by_keys`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        crop: f.crop,
-        state: f.state,
-        district: f.district,
-        year: f.year,
-        include_full_row: false,
-        include_engineered: false
-      })
-    });
-    if (!res.ok) throw new Error(`Yield API ${res.status}`);
-    const data = await res.json();
-    return { yhat_kg_ha: data.yhat_kg_ha, y_std_kg_ha: data.y_std_kg_ha ?? null } as YieldResp;
+  // Local heuristic recommender to avoid backend 404s
+  const computeIrrigationRanked = (f: IrrigationForm): RankedIrrigation[] => {
+    const moisture = f.soilMoisturePct;
+    const deficit = Math.max(0, 100 - moisture) / 100; // 0..1
+    const rainNext48 = (f.rainTomorrowMm || 0) + (f.rainDayAfterMm || 0);
+
+    // If soil is fairly wet or significant rain is imminent, suggest waiting
+    if (moisture >= 70 || rainNext48 >= 25) {
+      return [
+        {
+          method: "Wait",
+          score: 0.75,
+          reason: moisture >= 70
+            ? "Soil moisture is already adequate."
+            : "Significant rainfall forecasted in next 48 hours.",
+          est_water_mm: 0,
+          energy_kwh: 0,
+          cost_estimate: 0,
+        },
+        { method: "Drip", score: 0.45, reason: "If needed, apply minimal spot irrigation." },
+        { method: "Sprinkler", score: 0.40, reason: "Hold unless conditions dry out further." },
+      ];
+    }
+
+    // Base scores by dryness
+    let drip = 0.55 + 0.35 * deficit;
+    let sprinkler = 0.5 + 0.3 * deficit;
+    let surface = 0.45 + 0.25 * deficit;
+
+    // Texture adjustments
+    switch (f.soilTexture) {
+      case "sand":
+      case "sandy_loam":
+        drip += 0.1; // minimize percolation losses
+        sprinkler += 0.05;
+        break;
+      case "clay":
+      case "clay_loam":
+        surface += 0.07; // surface can work for heavy soils
+        sprinkler += 0.03;
+        break;
+      default:
+        sprinkler += 0.03; // loam-ish, balanced
+    }
+
+    // Weather adjustments
+    if (f.temperatureC >= 34) {
+      drip += 0.05; // targeted watering reduces evap losses
+    }
+    if (f.humidityPct <= 35) {
+      sprinkler += 0.03; // micro-climate cooling benefit
+    }
+    if (rainNext48 > 10) {
+      drip -= 0.03; sprinkler -= 0.03; surface -= 0.03; // be conservative if rain is coming
+    }
+
+    // Estimated water need (mm) simple model
+    const estWater = Math.max(10, Math.round(deficit * 50)); // 10–50 mm
+    const hours = f.hoursPerIrrigation ?? Math.max(1, Math.round(estWater / 25)); // ~25 mm/hr default
+    const energy = f.powerKW ? f.powerKW * hours : undefined;
+    const cost = energy && f.tariffPerKwh ? energy * f.tariffPerKwh : undefined;
+
+    const base = [
+      { method: "Drip", score: drip },
+      { method: "Sprinkler", score: sprinkler },
+      { method: "Surface", score: surface },
+    ]
+      .map((r) => ({
+        ...r,
+        est_water_mm: estWater,
+        energy_kwh: energy,
+        cost_estimate: cost,
+      }))
+      .sort((a, b) => b.score - a.score)
+      .map((r) => ({
+        ...r,
+        reason:
+          r.method === "Drip"
+            ? "Efficient under current dryness; reduces evaporation and percolation losses."
+            : r.method === "Sprinkler"
+            ? "Good uniformity; helpful when humidity is low and temperature is moderate-high."
+            : "Simple method; acceptable on heavier soils at moderate deficits.",
+      }));
+
+    return base;
   };
-// Accept both: single decision or ranked array (adapter)
-const fetchIrrigationRanked = async (f: IrrigationForm) => {
-  const payload = {
-    soilMoisture: f.soilMoisturePct,
-    temperature: f.temperatureC,
-    humidity: f.humidityPct,
-    rainfallTomorrow: f.rainTomorrowMm,
-    rainfallDayAfter: f.rainDayAfterMm,
-    crop: f.crop,
-    soilPh: f.soilPh,
-    soilTexture: f.soilTexture,
-    organicCarbon: f.organicCarbon,
-  };
-
-  const res = await fetch(`${API_BASE}/irrigation/decision`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-  if (!res.ok) throw new Error(`Decision API ${res.status}`);
-  const data: RecommendApiResp = await res.json();
-
-  // If API returns { ranked: [...] }
-  if ("ranked" in data && Array.isArray(data.ranked)) {
-    return data.ranked;
-  }
-
-  // If API returns { decision, reason, confidence } only → create a simple ranking
-  if ("decision" in data) {
-    const ranked: RankedIrrigation[] = [
-      {
-        method: data.decision === "irrigate" ? "Surface" : "Wait",
-        score: data.decision === "irrigate" ? 0.7 : 0.6,
-        reason: data.reason
-      }
-    ];
-    return ranked;
-  }
-
-  // Default: nothing useful from API
-  return [];
-};
 
 
   const fetchNearbyFarmers = async (f: IrrigationForm) => {
@@ -717,18 +745,17 @@ const fetchIrrigationRanked = async (f: IrrigationForm) => {
     setLoadingForm(true);
     setRecommendVisible(false);
     try {
-      const [yInfo, rankedList, neighbors] = await Promise.all([
-        fetchYield(f),
-        fetchIrrigationRanked(f),
-        fetchNearbyFarmers(f)
+      const [neighbors] = await Promise.all([
+        fetchNearbyFarmers(f),
       ]);
-      setYieldInfo(yInfo);
+      const rankedList = computeIrrigationRanked(f);
+      setYieldInfo(null); // omit yield until backend is available
       setRanked(rankedList);
       setFarmers(neighbors);
       setRecommendVisible(true);
       setLastForm(f);
     } catch (e: any) {
-      setError(e?.message || "Something failed");
+      setError(e?.message || "Failed to compute recommendation");
       setRecommendVisible(false);
       setYieldInfo(null);
       setRanked(null);
@@ -830,7 +857,8 @@ const fetchIrrigationRanked = async (f: IrrigationForm) => {
   }, [lastForm]);
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <Layout>
+      <div className="container mx-auto px-4 py-8">
       {/* Layout with sidebar quick actions */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
         <div className="space-y-6">
@@ -875,7 +903,8 @@ const fetchIrrigationRanked = async (f: IrrigationForm) => {
           />
         </div>
       </div>
-    </div>
+      </div>
+    </Layout>
   );
 };
 
