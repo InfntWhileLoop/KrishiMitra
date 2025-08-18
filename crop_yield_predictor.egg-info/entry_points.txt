@@ -1,0 +1,3 @@
+[console_scripts]
+crop-yield-predict = crop_yield_predictor.cli:predict_yield
+crop-yield-train = crop_yield_predictor.cli:train_model

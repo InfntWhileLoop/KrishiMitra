@@ -34,6 +34,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { icon: Users, label: 'Community', path: '/marketplace' },
     { icon: Droplets, label: 'Irrigation & Weather', path: '/irrigation-weather' },
     { icon: SeedIcon, label: 'Seed Variety', path: '/seed-variety' },
+    { icon: TrendingUp, label: 'Cluster', path: '/cluster' },
     { icon: TrendingUp, label: 'Market Price', path: '/market-price' },
     { icon: Bug, label: 'Pest & Disease', path: '/pest-disease' },
     { icon: FileText, label: 'Schemes', path: '/schemes' },

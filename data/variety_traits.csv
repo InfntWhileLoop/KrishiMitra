@@ -1,0 +1,13 @@
+crop,variety,pH_min,pH_max,textures_allowed,maturity_days,zone_codes,heat_tol,flood_tol,drought_tol,notes
+RICE,IR64,5.5,7.5,"clay,clay_loam,loam",120,"E1|E2|E3",1,1,0,"High yielding, flood tolerant"
+RICE,Swarna,5.0,8.0,"clay,clay_loam,loam,sandy_loam",135,"E1|E2",0,1,1,"Drought tolerant, good for upland"
+RICE,Basmati370,6.0,7.5,"clay_loam,loam",140,"E1",0,0,0,"Premium quality, sensitive to stress"
+WHEAT,HD2967,6.0,8.5,"loam,clay_loam,sandy_loam",150,"N1|N2|N3",1,0,1,"Heat and drought tolerant"
+WHEAT,DBW17,5.5,8.0,"loam,clay_loam",145,"N1|N2",0,0,1,"Drought tolerant, good for rainfed"
+WHEAT,PBW343,6.0,8.5,"loam,clay_loam,sandy_loam",155,"N1|N2|N3",1,0,0,"Heat tolerant, high yielding"
+MAIZE,PMH1,5.5,7.5,"loam,sandy_loam",90,"N1|N2",1,0,1,"Early maturity, drought tolerant"
+MAIZE,PMH2,6.0,7.0,"loam,clay_loam",100,"N1",0,0,0,"High yielding, needs good soil"
+MAIZE,PMH3,5.0,8.0,"loam,sandy_loam,clay_loam",95,"N1|N2|N3",1,1,1,"Stress tolerant, versatile"
+COTTON,BtCotton,6.0,8.0,"loam,clay_loam,sandy_loam",180,"C1|C2",1,0,1,"Heat and drought tolerant"
+COTTON,DesiCotton,5.5,8.5,"loam,clay_loam",170,"C1|C2|C3",0,0,1,"Drought tolerant, traditional"
+COTTON,HybridCotton,6.0,7.5,"loam,clay_loam",175,"C1|C2",1,0,0,"High yielding, needs care"

@@ -1,0 +1,1 @@
+{"feature_columns": ["JAN_HUMID", "JAN_RAIN", "JAN_TEMP", "JUL_HUMID", "JUL_RAIN", "JUL_TEMP"], "identifiers": ["state_norm", "district_norm", "year"], "preset": "climate", "medians": {"JAN_HUMID": 60.15561170860172, "JAN_RAIN": 13.710994725385927, "JAN_TEMP": 17.914355112988375, "JUL_HUMID": 80.81443065039545, "JUL_RAIN": 228.91650832412034, "JUL_TEMP": 29.27082987036875}}

@@ -9,6 +9,7 @@ import Community from './pages/Marketplace';
 import IrrigationWeather from './pages/IrrigationWeather';
 import SeedVariety from './pages/SeedVariety';
 import MarketPrice from './pages/MarketPrice';
+import Cluster from './pages/Cluster';
 import PestDisease from './pages/PestDisease';
 import GovernmentSchemes from './pages/GovernmentSchemes';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -40,6 +41,7 @@ function AppContent() {
           <Route path="/irrigation-weather" element={isAuthenticated ? <IrrigationWeather /> : <Navigate to="/auth" />} />
           <Route path="/seed-variety" element={isAuthenticated ? <SeedVariety /> : <Navigate to="/auth" />} />
           <Route path="/market-price" element={isAuthenticated ? <MarketPrice /> : <Navigate to="/auth" />} />
+          <Route path="/cluster" element={isAuthenticated ? <Cluster /> : <Navigate to="/auth" />} />
           <Route path="/pest-disease" element={isAuthenticated ? <PestDisease /> : <Navigate to="/auth" />} />
           <Route path="/schemes" element={isAuthenticated ? <GovernmentSchemes /> : <Navigate to="/auth" />} />
         </Routes>

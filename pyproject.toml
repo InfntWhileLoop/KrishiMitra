@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crop-yield-predictor"
+version = "0.1.0"
+description = "Production-ready crop yield prediction system using ICRISAT and climate data"
+authors = [{name = "ML Engineer", email = "ml@example.com"}]
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "pandas>=1.5.0",
+    "numpy>=1.21.0",
+    "scikit-learn>=1.1.0",
+    "joblib>=1.2.0",
+    "pyyaml>=6.0",
+    "click>=8.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=22.0.0",
+    "ruff>=0.1.0",
+    "jupyter>=1.0.0",
+]
+
+[project.scripts]
+crop-yield-train = "crop_yield_predictor.cli:train_model"
+crop-yield-predict = "crop_yield_predictor.cli:predict_yield"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["crop_yield_predictor*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.ruff]
+line-length = 88
+target-version = "py38"
