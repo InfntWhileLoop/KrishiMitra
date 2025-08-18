@@ -1,666 +1,882 @@
-import React, { useState, useEffect } from 'react';
-import Layout from '../components/Layout';
-import { Cloud, Thermometer, Droplets, MapPin, Calculator, Mic, Star, Upload, Bell, Users, CaseSensitive as University, BarChart as ChartBar, Download, Eye, Wind, AlertTriangle, CheckCircle, Leaf, FlaskRound as Flask, Phone } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Cloud, Thermometer, Droplets, Calendar, MapPin,
+  TrendingUp, AlertTriangle, CheckCircle, Upload, Download, Phone,
+  Users, Flashlight, Zap, GaugeCircle, Play, Pause, ShieldAlert
+} from "lucide-react";
+import { AlertTriangle as _AlertTriangle } from "lucide-react";
 
-const IrrigationWeather: React.FC = () => {
-  const [irrigationHours, setIrrigationHours] = useState(6);
-  const [cropType, setCropType] = useState('rice');
-  const [location, setLocation] = useState('📍 Click to detect location');
-  const [isListening, setIsListening] = useState(false);
-  const [voiceStatus, setVoiceStatus] = useState('');
-  const [showWhyModal, setShowWhyModal] = useState(false);
-  const [soilTestUploaded, setSoilTestUploaded] = useState(false);
-  const [cropSuggestionVisible, setCropSuggestionVisible] = useState(false);
-  const [selectedCrop, setSelectedCrop] = useState('');
+/**
+ * Single-file irrigation page with these inline components:
+ * - SoilAnalysisForm
+ * - RankedTable
+ * - EnergyCostCalculator
+ * - NearbyFarmers
+ * - QuickActionsToolbar
+ * - CsvBatchUpload
+ *
+ * Notes
+ * - Recommendation remains hidden until the form is submitted.
+ * - API_BASE resolves from NEXT_PUBLIC_API_BASE or VITE_API_BASE, then localhost:8000.
+ * - Tailwind for styling.
+ */
 
-  const [electricityBill, setElectricityBill] = useState(1750);
-  const [dieselCost, setDieselCost] = useState(980);
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-  useEffect(() => {
-    updateCostCalculations();
-  }, [irrigationHours, cropType]);
 
-  const updateCostCalculations = () => {
-    const baseElectricity = irrigationHours * 40;
-    const baseDiesel = irrigationHours * 35;
 
-    const cropMultipliers: { [key: string]: number } = {
-      rice: 1.2,
-      wheat: 0.9,
-      sugarcane: 1.5,
-      cotton: 1.1,
-      vegetables: 0.8,
-      fruits: 1.0,
-    };
+/** ---------- Types ---------- */
 
-    const multiplier = cropMultipliers[cropType] || 1.0;
-    const weeklyElectricity = Math.round(baseElectricity * multiplier * 7);
-    const weeklyDiesel = Math.round(baseDiesel * multiplier * 7);
+type IrrigationForm = {
+  // location & crop
+  state: string;
+  district: string;
+  year: number;
+  crop: string; // must match model artifacts, e.g., "RICE", "WHEAT"
 
-    setElectricityBill(weeklyElectricity);
-    setDieselCost(weeklyDiesel);
+  // soil analysis
+  soilPh: number;
+  soilTexture: "sand" | "sandy_loam" | "loam" | "clay_loam" | "clay" | "silt_loam";
+  organicCarbon: number;
+
+  // current sensors
+  soilMoisturePct: number;
+  temperatureC: number;
+  humidityPct: number;
+
+  // short-term rain forecast (mm)
+  rainTomorrowMm: number;
+  rainDayAfterMm: number;
+
+  // optional: pump meta for cost calc
+  powerKW?: number;          // pump rated power
+  tariffPerKwh?: number;     // electricity tariff
+  hoursPerIrrigation?: number;
+};
+
+type YieldResp = {
+  yhat_kg_ha: number;
+  y_std_kg_ha?: number | null;
+};
+
+type RankedIrrigation = {
+  method: string;
+  score: number;     // higher is better
+  reason?: string;
+  est_water_mm?: number; // optional
+  energy_kwh?: number;   // optional
+  cost_estimate?: number;// optional currency
+};
+
+type RecommendApiResp =
+  | { decision: "irrigate" | "wait"; reason: string; confidence: number; ranked?: RankedIrrigation[] }
+  | { ranked: RankedIrrigation[]; top?: { method: string; reason?: string; confidence?: number } };
+
+type FarmerContact = {
+  id: string;
+  name: string;
+  phone: string;
+  distance_km: number;
+  crops?: string[];
+  hasPump?: boolean;
+  notes?: string;
+};
+
+/** ---------- Helpers ---------- */
+
+function clsx(...xs: (string | false | undefined)[]) {
+  return xs.filter(Boolean).join(" ");
+}
+
+function fmt(n?: number | null, d = 0) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  return n.toFixed(d);
+}
+
+/** ============ SoilAnalysisForm (inline) ============ */
+const SoilAnalysisForm: React.FC<{
+  initial?: Partial<IrrigationForm>;
+  onSubmit: (values: IrrigationForm) => void;
+  loading?: boolean;
+}> = ({ initial, onSubmit, loading }) => {
+  const [values, setValues] = useState<IrrigationForm>({
+    state: initial?.state ?? "Bihar",
+    district: initial?.district ?? "Patna",
+    year: initial?.year ?? 2012,
+    crop: initial?.crop ?? "RICE",
+
+    soilPh: initial?.soilPh ?? 6.4,
+    soilTexture: initial?.soilTexture ?? "loam",
+    organicCarbon: initial?.organicCarbon ?? 0.55,
+
+    soilMoisturePct: initial?.soilMoisturePct ?? 65,
+    temperatureC: initial?.temperatureC ?? 28,
+    humidityPct: initial?.humidityPct ?? 72,
+
+    rainTomorrowMm: initial?.rainTomorrowMm ?? 15,
+    rainDayAfterMm: initial?.rainDayAfterMm ?? 25,
+
+    powerKW: initial?.powerKW ?? 5,
+    tariffPerKwh: initial?.tariffPerKwh ?? 7.0,
+    hoursPerIrrigation: initial?.hoursPerIrrigation ?? 2,
+  });
+
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = (): boolean => {
+    const e: Record<string, string> = {};
+    if (!values.state) e.state = "State is required";
+    if (!values.district) e.district = "District is required";
+    if (!values.crop) e.crop = "Crop is required";
+    if (!values.year || values.year < 1980 || values.year > 2100) e.year = "Year must be realistic";
+
+    if (values.soilPh < 3 || values.soilPh > 10) e.soilPh = "pH must be between 3 and 10";
+    if (values.organicCarbon < 0 || values.organicCarbon > 5) e.organicCarbon = "OC must be between 0 and 5%";
+    if (values.soilMoisturePct < 0 || values.soilMoisturePct > 100) e.soilMoisturePct = "Moisture must be 0–100%";
+    if (values.temperatureC < -5 || values.temperatureC > 60) e.temperatureC = "Temperature looks unrealistic";
+    if (values.humidityPct < 0 || values.humidityPct > 100) e.humidityPct = "Humidity must be 0–100%";
+    if (values.rainTomorrowMm < 0 || values.rainDayAfterMm < 0) e.rain = "Rainfall can’t be negative";
+
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const getGPSLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          setLocation(`📍 Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`);
-        },
-        () => {
-          setLocation('❌ Location access denied');
-        }
-      );
-    } else {
-      alert('Geolocation is not supported by this browser.');
-    }
+  const onChange = (k: keyof IrrigationForm, v: any) => {
+    setValues((s) => ({ ...s, [k]: v }));
   };
 
-  const startVoiceAssistant = () => {
-    if ('webkitSpeechRecognition' in window) {
-      const recognition = new (window as any).webkitSpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = 'en-US';
-
-      setIsListening(true);
-      setVoiceStatus('🎤 Say something like "How much water today?"');
-
-      recognition.start();
-
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript.toLowerCase();
-        setVoiceStatus(`You said: "${transcript}"`);
-
-        setTimeout(() => {
-          if (transcript.includes('water') && transcript.includes('today')) {
-            setVoiceStatus('💧 Based on weather and soil moisture, you need 2,500L today');
-          } else if (transcript.includes('cost') || transcript.includes('bill')) {
-            setVoiceStatus(`💰 Current week electricity bill estimate: ₹${electricityBill}`);
-          } else {
-            setVoiceStatus('🤖 Try asking: "How much water today?" or "What\'s my bill?"');
-          }
-        }, 1000);
-
-        setIsListening(false);
-      };
-
-      recognition.onerror = () => {
-        setVoiceStatus('❌ Speech recognition error. Please try again.');
-        setIsListening(false);
-      };
-    } else {
-      setVoiceStatus('❌ Speech recognition not supported in this browser');
-    }
-  };
-
-  const handleSoilTestUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setTimeout(() => {
-        setSoilTestUploaded(true);
-      }, 2000);
-    }
-  };
-
-  const showCropSuggestion = () => {
-    if (selectedCrop) {
-      setCropSuggestionVisible(true);
-    }
-  };
-
-  const generateReport = () => {
-    const reportContent = `
-IRRIGATION COST REPORT
-=====================
-Location: ${location}
-Soil Type: Clay Loam (pH 6.8)
-Groundwater: 12m depth ✅
-
-WEEKLY COSTS:
-Electricity: ₹${electricityBill}/week
-Diesel: ₹${dieselCost}/week
-
-Generated: ${new Date().toLocaleDateString()}
-    `;
-
-    const blob = new Blob([reportContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'irrigation_cost_report.txt';
-    a.click();
-    URL.revokeObjectURL(url);
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+    onSubmit(values);
   };
 
   return (
-    <Layout>
-      <div className="space-y-8">
-        {/* Header Section */}
-        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-8 text-white">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold mb-2">🌊 Smart Irrigation Planner</h1>
-            <p className="text-xl opacity-90 mb-6">
-              "Choose the right irrigation method, save costs, and grow better crops."
-            </p>
-
-            {/* Voice Assistant Button */}
-            <div className="mt-6">
-              <button
-                onClick={startVoiceAssistant}
-                disabled={isListening}
-                className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-3 rounded-full font-semibold transition-all duration-300 hover:shadow-lg hover:scale-105"
-              >
-                <Mic className="h-5 w-5 inline mr-2" />
-                {isListening ? 'Listening...' : 'Ask: "How much water today?"'}
-              </button>
-              {voiceStatus && (
-                <div className="mt-2 text-sm opacity-75">{voiceStatus}</div>
-              )}
-            </div>
-          </div>
+    <form onSubmit={submit} className="bg-white rounded-2xl shadow-lg border border-green-100 p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <Cloud className="h-6 w-6 text-green-700" />
+          <h2 className="text-xl font-bold text-green-700">Soil Analysis & Context</h2>
         </div>
-
-        {/* Region-Specific Recommendation Card */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-gray-800">
-              <MapPin className="h-6 w-6 text-red-500 inline mr-2" />
-              Location-Based Recommendation
-            </h2>
-            <button
-              onClick={getGPSLocation}
-              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center"
-            >
-              <MapPin className="h-4 w-4 mr-1" />
-              Get GPS Location
-            </button>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <div className="text-sm text-blue-600 font-medium">Location</div>
-              <div className="text-lg font-semibold">{location}</div>
-            </div>
-            <div className="bg-green-50 p-4 rounded-lg">
-              <div className="text-sm text-green-600 font-medium">Soil Type</div>
-              <div className="text-lg font-semibold">Clay Loam (pH 6.8)</div>
-            </div>
-            <div className="bg-yellow-50 p-4 rounded-lg">
-              <div className="text-sm text-yellow-600 font-medium">Groundwater</div>
-              <div className="text-lg font-semibold">12m depth ✅</div>
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-r from-green-400 to-blue-500 text-white p-6 rounded-xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-bold mb-2">
-                  🚀 Recommended: Tube Well Irrigation
-                </h3>
-                <div className="flex items-center mb-2">
-                  <span className="text-sm mr-2">Suitability Score:</span>
-                  <div className="flex text-yellow-300">
-                    {[1, 2, 3, 4].map((star) => (
-                      <Star key={star} className="h-4 w-4 fill-current" />
-                    ))}
-                    <Star className="h-4 w-4" />
-                  </div>
-                  <span className="ml-2 font-semibold">85/100</span>
-                </div>
-                <p className="opacity-90">
-                  Based on your soil type, groundwater availability, and regional climate data
-                </p>
-              </div>
-              <div className="text-right">
-                <button
-                  onClick={() => setShowWhyModal(true)}
-                  className="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-50 transition-colors mb-2 block"
-                >
-                  ✅ Why this method?
-                </button>
-                <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">
-                  🔄 See Alternatives
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Irrigation Method Cards */}
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Tube Well Irrigation Card */}
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6">
-              <h3 className="text-xl font-bold mb-2">
-                <Droplets className="h-5 w-5 inline mr-2" />
-                Tube Well Irrigation
-              </h3>
-              <div className="text-sm opacity-90">Most suitable for your region</div>
-            </div>
-            <div className="p-6">
-              <div className="space-y-3 mb-6">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Expected Area Coverage:</span>
-                  <span className="font-semibold">~2 ha/day</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Groundwater Depth:</span>
-                  <span className="font-semibold text-green-600">12m ✔️ economical</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Electricity/Diesel Cost:</span>
-                  <span className="font-semibold">~₹250/day</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Water Efficiency:</span>
-                  <span className="font-semibold">60%</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <button className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors">
-                  ⚡ Estimate My Electricity Bill
-                </button>
-                <button className="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition-colors">
-                  💧 Start Pump Alert
-                </button>
-                <button className="w-full bg-purple-500 text-white py-2 rounded-lg hover:bg-purple-600 transition-colors">
-                  📊 Compare With Canal/Tank
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Drip Irrigation Card */}
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-            <div className="bg-gradient-to-r from-green-400 to-green-500 text-white p-6">
-              <h3 className="text-xl font-bold mb-2">
-                <Leaf className="h-5 w-5 inline mr-2" />
-                Drip Irrigation (Micro)
-              </h3>
-              <div className="text-sm opacity-90">High efficiency, low water usage</div>
-            </div>
-            <div className="p-6">
-              <div className="space-y-3 mb-6">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Efficiency:</span>
-                  <span className="font-semibold text-green-600">85–95%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Water Required:</span>
-                  <span className="font-semibold">5L/hr per plant</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Best For:</span>
-                  <span className="font-semibold">Vegetables, orchards</span>
-                </div>
-                <div className="bg-green-100 p-2 rounded text-center">
-                  <span className="text-green-700 font-semibold">🌱 Govt Subsidy Available</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <button className="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition-colors">
-                  💰 Check Subsidy
-                </button>
-                <button className="w-full bg-yellow-500 text-white py-2 rounded-lg hover:bg-yellow-600 transition-colors">
-                  🔔 Low Pressure Alert
-                </button>
-                <button className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors">
-                  🛠 Maintenance Tips
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Tank Irrigation Card */}
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-400 to-red-500 text-white p-6">
-              <h3 className="text-xl font-bold mb-2">
-                <Droplets className="h-5 w-5 inline mr-2" />
-                Tank Irrigation
-              </h3>
-              <div className="text-sm opacity-90">Community-based irrigation</div>
-            </div>
-            <div className="p-6">
-              <div className="space-y-3 mb-6">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Coverage:</span>
-                  <span className="font-semibold">~50 acres in cluster</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Feasible In:</span>
-                  <span className="font-semibold">TN, Telangana, AP</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Seasonal Use:</span>
-                  <span className="font-semibold">Rainy → Winter crops</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <button className="w-full bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 transition-colors">
-                  👨‍👩‍👩 Pool With Neighbours
-                </button>
-                <button className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors">
-                  📍 Find Local Tanks
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Cost & Energy Panel */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">
-            <Calculator className="h-6 w-6 text-yellow-500 inline mr-2" />
-            Cost & Energy Calculator
-          </h2>
-
-          <div className="grid md:grid-cols-2 gap-6 mb-6">
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Hours of irrigation/day:
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="12"
-                  value={irrigationHours}
-                  onChange={(e) => setIrrigationHours(parseInt(e.target.value))}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                />
-                <div className="text-center mt-1 font-semibold">
-                  {irrigationHours} hours
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Crop Type:
-                </label>
-                <select
-                  value={cropType}
-                  onChange={(e) => setCropType(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="rice">Rice</option>
-                  <option value="wheat">Wheat</option>
-                  <option value="sugarcane">Sugarcane</option>
-                  <option value="cotton">Cotton</option>
-                  <option value="vegetables">Vegetables</option>
-                  <option value="fruits">Fruits</option>
-                </select>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="bg-yellow-50 p-4 rounded-lg">
-                <div className="text-sm text-yellow-600 font-medium">
-                  💡 Estimated Electricity Bill
-                </div>
-                <div className="text-2xl font-bold text-yellow-700">
-                  ₹{electricityBill}/week
-                </div>
-              </div>
-              <div className="bg-red-50 p-4 rounded-lg">
-                <div className="text-sm text-red-600 font-medium">
-                  ⛽ Diesel Cost (if applicable)
-                </div>
-                <div className="text-2xl font-bold text-red-700">
-                  ₹{dieselCost}/week
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex space-x-4">
-            <button
-              onClick={generateReport}
-              className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Download Cost Report (PDF)
-            </button>
-            <button className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors">
-              🧾 Check Local Subsidy/Policy
-            </button>
-          </div>
-        </div>
-
-        {/* Soil & Crop Quick Actions */}
-        <div className="grid md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">
-              <Flask className="h-5 w-5 text-blue-500 inline mr-2" />
-              Soil Analysis
-            </h3>
-            <div className="space-y-3">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-600">Upload Soil Test Result</p>
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.png"
-                  onChange={handleSoilTestUpload}
-                  className="hidden"
-                  id="soilTestUpload"
-                />
-                <button
-                  onClick={() => document.getElementById('soilTestUpload')?.click()}
-                  className="mt-2 bg-blue-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-600 transition-colors"
-                >
-                  🔬 Upload Test Report
-                </button>
-              </div>
-              {soilTestUploaded && (
-                <div className="bg-green-50 p-3 rounded-lg">
-                  <div className="text-sm text-green-700 font-medium">
-                    AI Analysis Complete ✅
-                  </div>
-                  <div className="text-xs text-green-600 mt-1">
-                    Irrigation method updated based on soil data
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">
-              <Leaf className="h-5 w-5 text-green-500 inline mr-2" />
-              Crop Selection
-            </h3>
-            <div className="space-y-3">
-              <select
-                value={selectedCrop}
-                onChange={(e) => setSelectedCrop(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-              >
-                <option value="">Select your crop</option>
-                <option value="rice-basmati">Rice - Basmati (Water-efficient)</option>
-                <option value="wheat-dwarf">Wheat - Dwarf variety</option>
-                <option value="cotton-bt">Cotton - BT variety</option>
-                <option value="tomato-hybrid">Tomato - Hybrid</option>
-                <option value="mango-alphonso">Mango - Alphonso</option>
-              </select>
-              <button
-                onClick={showCropSuggestion}
-                className="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition-colors"
-              >
-                🌾 Get Water-Efficient Varieties
-              </button>
-              {cropSuggestionVisible && (
-                <div className="bg-green-50 p-3 rounded-lg">
-                  <div className="text-sm text-green-700 font-medium">
-                    💡 Recommended: IR64 Rice
-                  </div>
-                  <div className="text-xs text-green-600 mt-1">
-                    30% less water requirement, high yield
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">
-              <Bell className="h-5 w-5 text-yellow-500 inline mr-2" />
-              Smart Alerts
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                <span className="text-sm">Soil Moisture Alert</span>
-                <input type="checkbox" defaultChecked className="toggle" />
-              </div>
-              <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                <span className="text-sm">Weather Alert</span>
-                <input type="checkbox" defaultChecked className="toggle" />
-              </div>
-              <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                <span className="text-sm">SMS Notifications</span>
-                <input type="checkbox" className="toggle" />
-              </div>
-              <button className="w-full bg-yellow-500 text-white py-2 rounded-lg hover:bg-yellow-600 transition-colors">
-                ⏰ Setup Auto-Irrigation Alerts
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Government Subsidy & Community Features */}
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">
-              <University className="h-5 w-5 text-green-500 inline mr-2" />
-              Government Schemes & Subsidies
-            </h3>
-            <div className="space-y-3">
-              <div className="border-l-4 border-green-500 bg-green-50 p-3 rounded">
-                <div className="font-medium text-green-800">PM-KUSUM Scheme</div>
-                <div className="text-sm text-green-700">Solar pump subsidy up to 90%</div>
-                <button className="mt-2 text-xs bg-green-500 text-white px-3 py-1 rounded">
-                  Apply Now
-                </button>
-              </div>
-              <div className="border-l-4 border-blue-500 bg-blue-50 p-3 rounded">
-                <div className="font-medium text-blue-800">Micro Irrigation Scheme</div>
-                <div className="text-sm text-blue-700">Drip/Sprinkler subsidy 55-75%</div>
-                <button className="mt-2 text-xs bg-blue-500 text-white px-3 py-1 rounded">
-                  Check Eligibility
-                </button>
-              </div>
-              <div className="border-l-4 border-yellow-500 bg-yellow-50 p-3 rounded">
-                <div className="font-medium text-yellow-800">State Agriculture Policy</div>
-                <div className="text-sm text-yellow-700">Free electricity for farming</div>
-                <button className="mt-2 text-xs bg-yellow-500 text-white px-3 py-1 rounded">
-                  Learn More
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">
-              <Users className="h-5 w-5 text-purple-500 inline mr-2" />
-              Farmer Community Network
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
-                  RS
-                </div>
-                <div className="flex-1">
-                  <div className="font-medium">Rajesh Singh</div>
-                  <div className="text-sm text-gray-600">2.5km away • Shares tube well</div>
-                </div>
-                <button className="bg-purple-500 text-white px-3 py-1 rounded text-xs hover:bg-purple-600 transition-colors">
-                  Connect
-                </button>
-              </div>
-              <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
-                  MP
-                </div>
-                <div className="flex-1">
-                  <div className="font-medium">Mohan Patel</div>
-                  <div className="text-sm text-gray-600">1.8km away • Tank irrigation expert</div>
-                </div>
-                <button className="bg-purple-500 text-white px-3 py-1 rounded text-xs hover:bg-purple-600 transition-colors">
-                  Connect
-                </button>
-              </div>
-              <button className="w-full bg-purple-500 text-white py-2 rounded-lg hover:bg-purple-600 transition-colors">
-                <Users className="h-4 w-4 inline mr-2" />
-                Find More Neighbors
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Real-time Weather & Alerts */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h3 className="text-lg font-bold text-gray-800 mb-4">
-            <Cloud className="h-5 w-5 text-blue-500 inline mr-2" />
-            Real-time Weather & Irrigation Alerts
-          </h3>
-          <div className="grid md:grid-cols-4 gap-4 mb-4">
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <Thermometer className="h-8 w-8 text-blue-500 mx-auto mb-2" />
-              <div className="text-sm text-gray-600">Temperature</div>
-              <div className="text-xl font-bold">28°C</div>
-            </div>
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <Droplets className="h-8 w-8 text-blue-500 mx-auto mb-2" />
-              <div className="text-sm text-gray-600">Humidity</div>
-              <div className="text-xl font-bold">65%</div>
-            </div>
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <Wind className="h-8 w-8 text-green-500 mx-auto mb-2" />
-              <div className="text-sm text-gray-600">Wind Speed</div>
-              <div className="text-xl font-bold">12 km/h</div>
-            </div>
-            <div className="text-center p-4 bg-yellow-50 rounded-lg">
-              <Eye className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
-              <div className="text-sm text-gray-600">Visibility</div>
-              <div className="text-xl font-bold">10 km</div>
-            </div>
-          </div>
-          <div className="bg-gradient-to-r from-orange-400 to-red-500 text-white p-4 rounded-lg">
-            <div className="flex items-center">
-              <AlertTriangle className="h-8 w-8 mr-3" />
-              <div>
-                <div className="font-bold">Weather Alert</div>
-                <div className="text-sm opacity-90">
-                  High temperature expected tomorrow. Increase irrigation by 20%.
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Why Method Modal */}
-        {showWhyModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 max-w-md mx-4">
-              <h3 className="text-lg font-bold mb-4">Why Tube Well Irrigation?</h3>
-              <ul className="space-y-2 text-sm">
-                <li>• Your soil type (Clay Loam) retains water well, suitable for tube well</li>
-                <li>• Groundwater at 12m depth is economically viable</li>
-                <li>• Regional rainfall pattern supports groundwater recharge</li>
-                <li>• Cost-effective for 2+ hectare farms</li>
-              </ul>
-              <button
-                onClick={() => setShowWhyModal(false)}
-                className="mt-4 w-full bg-blue-500 text-white py-2 rounded-lg"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        )}
+        <div className="text-sm text-gray-500">Fill this first to see recommendations</div>
       </div>
-    </Layout>
+
+      {/* location & crop */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">State</label>
+          <input
+            className="mt-1 w-full rounded-lg border px-3 py-2"
+            value={values.state}
+            onChange={(e) => onChange("state", e.target.value)}
+          />
+          {errors.state && <p className="text-xs text-red-600 mt-1">{errors.state}</p>}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">District</label>
+          <input
+            className="mt-1 w-full rounded-lg border px-3 py-2"
+            value={values.district}
+            onChange={(e) => onChange("district", e.target.value)}
+          />
+          {errors.district && <p className="text-xs text-red-600 mt-1">{errors.district}</p>}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Year</label>
+          <input
+            type="number"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
+            value={values.year}
+            onChange={(e) => onChange("year", Number(e.target.value))}
+          />
+          {errors.year && <p className="text-xs text-red-600 mt-1">{errors.year}</p>}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Crop</label>
+          <select
+            className="mt-1 w-full rounded-lg border px-3 py-2"
+            value={values.crop}
+            onChange={(e) => onChange("crop", e.target.value)}
+          >
+            <option value="RICE">RICE</option>
+            <option value="WHEAT">WHEAT</option>
+            <option value="MAIZE">MAIZE</option>
+            <option value="SORGHUM">SORGHUM</option>
+          </select>
+          {errors.crop && <p className="text-xs text-red-600 mt-1">{errors.crop}</p>}
+        </div>
+      </div>
+
+      {/* soil analysis */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Soil pH</label>
+          <input
+            type="number" step="0.1"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
+            value={values.soilPh}
+            onChange={(e) => onChange("soilPh", Number(e.target.value))}
+          />
+          {errors.soilPh && <p className="text-xs text-red-600 mt-1">{errors.soilPh}</p>}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Soil Texture</label>
+          <select
+            className="mt-1 w-full rounded-lg border px-3 py-2"
+            value={values.soilTexture}
+            onChange={(e) => onChange("soilTexture", e.target.value)}
+          >
+            <option value="sand">Sand</option>
+            <option value="sandy_loam">Sandy Loam</option>
+            <option value="loam">Loam</option>
+            <option value="clay_loam">Clay Loam</option>
+            <option value="clay">Clay</option>
+            <option value="silt_loam">Silt Loam</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Organic Carbon (%)</label>
+          <input
+            type="number" step="0.01"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
+            value={values.organicCarbon}
+            onChange={(e) => onChange("organicCarbon", Number(e.target.value))}
+          />
+          {errors.organicCarbon && <p className="text-xs text-red-600 mt-1">{errors.organicCarbon}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Rain Tomorrow (mm)</label>
+          <input
+            type="number"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
+            value={values.rainTomorrowMm}
+            onChange={(e) => onChange("rainTomorrowMm", Number(e.target.value))}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Rain Day After (mm)</label>
+          <input
+            type="number"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
+            value={values.rainDayAfterMm}
+            onChange={(e) => onChange("rainDayAfterMm", Number(e.target.value))}
+          />
+        </div>
+      </div>
+
+      {/* sensors */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-blue-50 rounded-lg p-3">
+          <div className="flex items-center mb-1">
+            <Droplets className="h-4 w-4 text-blue-600 mr-2" />
+            <span className="font-semibold text-blue-800">Soil Moisture</span>
+          </div>
+          <div className="flex items-center space-x-3">
+            <input
+              type="range" min={0} max={100}
+              value={values.soilMoisturePct}
+              onChange={(e) => onChange("soilMoisturePct", Number(e.target.value))}
+              className="w-full"
+            />
+            <div className="text-blue-700 font-bold w-16 text-right">{values.soilMoisturePct}%</div>
+          </div>
+        </div>
+        <div className="bg-orange-50 rounded-lg p-3">
+          <div className="flex items-center mb-1">
+            <Thermometer className="h-4 w-4 text-orange-600 mr-2" />
+            <span className="font-semibold text-orange-800">Temperature</span>
+          </div>
+          <div className="flex items-center space-x-3">
+            <input
+              type="number" className="w-full rounded-lg border px-3 py-2"
+              value={values.temperatureC}
+              onChange={(e) => onChange("temperatureC", Number(e.target.value))}
+            />
+            <div className="text-orange-700 font-bold">°C</div>
+          </div>
+        </div>
+        <div className="bg-green-50 rounded-lg p-3">
+          <div className="flex items-center mb-1">
+            <Cloud className="h-4 w-4 text-green-600 mr-2" />
+            <span className="font-semibold text-green-800">Humidity</span>
+          </div>
+          <div className="flex items-center space-x-3">
+            <input
+              type="range" min={0} max={100}
+              value={values.humidityPct}
+              onChange={(e) => onChange("humidityPct", Number(e.target.value))}
+              className="w-full"
+            />
+            <div className="text-green-700 font-bold w-16 text-right">{values.humidityPct}%</div>
+          </div>
+        </div>
+      </div>
+
+      {/* pump meta for cost calc */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Pump Power (kW)</label>
+          <input
+            type="number" step="0.1"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
+            value={values.powerKW}
+            onChange={(e) => onChange("powerKW", Number(e.target.value))}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Tariff (₹/kWh)</label>
+          <input
+            type="number" step="0.01"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
+            value={values.tariffPerKwh}
+            onChange={(e) => onChange("tariffPerKwh", Number(e.target.value))}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Hours / Irrigation</label>
+          <input
+            type="number" step="0.1"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
+            value={values.hoursPerIrrigation}
+            onChange={(e) => onChange("hoursPerIrrigation", Number(e.target.value))}
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-end gap-3">
+        <button
+          type="submit"
+          disabled={loading}
+          className={clsx(
+            "px-5 py-2 rounded-lg text-white font-semibold",
+            loading ? "bg-gray-400" : "bg-green-600 hover:bg-green-700"
+          )}
+        >
+          {loading ? "Calculating…" : "Get Recommendation"}
+        </button>
+      </div>
+    </form>
   );
 };
 
-export default IrrigationWeather;
+/** ============ RankedTable (inline) ============ */
+const RankedTable: React.FC<{
+  ranked: RankedIrrigation[];
+  yieldInfo?: YieldResp | null;
+}> = ({ ranked, yieldInfo }) => {
+  if (!ranked?.length) return null;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-lg border border-green-100 p-6">
+      <div className="flex items-center mb-4">
+        <TrendingUp className="h-6 w-6 text-green-700 mr-2" />
+        <h3 className="text-lg font-bold text-green-700">Ranked Irrigation Recommendations</h3>
+      </div>
+
+      {yieldInfo && (
+        <div className="mb-4 text-sm text-gray-700">
+          Predicted yield: <b>{fmt(yieldInfo.yhat_kg_ha, 0)} kg/ha</b>
+          {yieldInfo.y_std_kg_ha ? ` (±${fmt(yieldInfo.y_std_kg_ha, 0)} sd)` : ""}
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="text-left text-gray-600">
+              <th className="py-2 pr-3">Rank</th>
+              <th className="py-2 pr-3">Method</th>
+              <th className="py-2 pr-3">Score</th>
+              <th className="py-2 pr-3">Est. Water (mm)</th>
+              <th className="py-2 pr-3">Energy (kWh)</th>
+              <th className="py-2 pr-3">Cost (₹)</th>
+              <th className="py-2 pr-3">Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ranked.map((r, i) => (
+              <tr key={`${r.method}-${i}`} className="border-t">
+                <td className="py-2 pr-3 font-semibold">{i + 1}</td>
+                <td className="py-2 pr-3">{r.method}</td>
+                <td className="py-2 pr-3">{fmt(r.score, 2)}</td>
+                <td className="py-2 pr-3">{fmt(r.est_water_mm)}</td>
+                <td className="py-2 pr-3">{fmt(r.energy_kwh)}</td>
+                <td className="py-2 pr-3">{fmt(r.cost_estimate)}</td>
+                <td className="py-2 pr-3 max-w-xl">{r.reason || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+/** ============ EnergyCostCalculator (inline) ============ */
+const EnergyCostCalculator: React.FC<{
+  powerKW?: number;
+  tariffPerKwh?: number;
+  hoursPerIrrigation?: number;
+}> = ({ powerKW = 5, tariffPerKwh = 7.0, hoursPerIrrigation = 2 }) => {
+  const [kw, setKw] = useState(powerKW);
+  const [tariff, setTariff] = useState(tariffPerKwh);
+  const [hours, setHours] = useState(hoursPerIrrigation);
+
+  const kwh = useMemo(() => kw * hours, [kw, hours]);
+  const cost = useMemo(() => kwh * tariff, [kwh, tariff]);
+
+  return (
+    <div className="bg-white rounded-2xl shadow-lg border border-green-100 p-6">
+      <div className="flex items-center mb-4">
+        <Zap className="h-6 w-6 text-yellow-600 mr-2" />
+        <h3 className="text-lg font-bold text-gray-900">Energy & Cost Calculator</h3>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Pump Power (kW)</label>
+          <input
+            type="number" step="0.1"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
+            value={kw}
+            onChange={(e) => setKw(Number(e.target.value))}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Tariff (₹/kWh)</label>
+          <input
+            type="number" step="0.01"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
+            value={tariff}
+            onChange={(e) => setTariff(Number(e.target.value))}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Hours / Irrigation</label>
+          <input
+            type="number" step="0.1"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
+            value={hours}
+            onChange={(e) => setHours(Number(e.target.value))}
+          />
+        </div>
+
+        <div className="bg-gray-50 rounded-lg p-3">
+          <div className="text-gray-700">Energy</div>
+          <div className="text-2xl font-bold">{fmt(kwh, 2)} kWh</div>
+          <div className="text-gray-500">Cost ≈ <b>₹{fmt(cost, 0)}</b></div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/** ============ NearbyFarmers (inline) ============ */
+const NearbyFarmers: React.FC<{
+  farmers: FarmerContact[];
+}> = ({ farmers }) => {
+  if (!farmers?.length) return null;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-lg border border-green-100 p-6">
+      <div className="flex items-center mb-4">
+        <Users className="h-6 w-6 text-green-700 mr-2" />
+        <h3 className="text-lg font-bold text-gray-900">Nearby Farmers</h3>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {farmers.map((f) => (
+          <div key={f.id} className="border rounded-xl p-4 flex items-center justify-between">
+            <div>
+              <div className="font-semibold text-gray-900">{f.name}</div>
+              <div className="text-sm text-gray-600">
+                {fmt(f.distance_km, 1)} km away • {f.crops?.join(", ") || "—"}
+              </div>
+              {f.notes && <div className="text-xs text-gray-500 mt-1">{f.notes}</div>}
+            </div>
+            <a
+              href={`tel:${f.phone}`}
+              className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg"
+            >
+              <Phone className="h-4 w-4" />
+              Call
+            </a>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/** ============ QuickActionsToolbar (inline) ============ */
+const QuickActionsToolbar: React.FC<{
+  onStartPump: () => void;
+  onLowPressure: () => void;
+  onWeatherAlert: () => void;
+  busy?: boolean;
+}> = ({ onStartPump, onLowPressure, onWeatherAlert, busy }) => {
+  return (
+    <div className="sticky top-6 space-y-3">
+      <div className="bg-white rounded-2xl shadow-lg border p-4">
+        <div className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+          <GaugeCircle className="h-5 w-5 text-green-700" />
+          Quick Actions
+        </div>
+        <div className="grid gap-2">
+          <button
+            onClick={onStartPump}
+            disabled={busy}
+            className={clsx("w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-white",
+              busy ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700")}
+          >
+            <Play className="h-4 w-4" /> Start Pump Alert
+          </button>
+          <button
+            onClick={onLowPressure}
+            disabled={busy}
+            className={clsx("w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-white",
+              busy ? "bg-gray-400" : "bg-orange-600 hover:bg-orange-700")}
+          >
+            <ShieldAlert className="h-4 w-4" /> Low Pressure Alert
+          </button>
+          <button
+            onClick={onWeatherAlert}
+            disabled={busy}
+            className={clsx("w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-white",
+              busy ? "bg-gray-400" : "bg-emerald-600 hover:bg-emerald-700")}
+          >
+            <Cloud className="h-4 w-4" /> Weather Alerts
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/** ============ CsvBatchUpload (inline) ============ */
+const CsvBatchUpload: React.FC<{
+  endpoint?: string; // defaults to /irrigation/batch/predict/csv
+}> = ({ endpoint = `${API_BASE}/irrigation/batch/predict/csv` }) => {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const onUpload = async (file: File) => {
+    setErr(null);
+    setBusy(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(endpoint, { method: "POST", body: form });
+      if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "irrigation_predictions.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setErr(e?.message || "Upload failed");
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-lg border border-green-100 p-6">
+      <div className="flex items-center mb-4">
+        <Upload className="h-6 w-6 text-blue-700 mr-2" />
+        <h3 className="text-lg font-bold text-gray-900">Batch Predictions (CSV)</h3>
+      </div>
+      <p className="text-sm text-gray-600 mb-3">
+        Upload a CSV with the exact columns required by your backend. You’ll get a CSV back with predictions.
+      </p>
+      <div className="flex items-center gap-3">
+        <input
+          type="file"
+          accept=".csv"
+          ref={inputRef}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onUpload(f);
+          }}
+          className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg
+                     file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700
+                     hover:file:bg-blue-100"
+        />
+        <a
+          href="/samples/irrigation_batch_template.csv"
+          onClick={(e) => e.preventDefault()}
+          className="inline-flex items-center text-blue-700 hover:underline text-sm"
+          title="Ask backend team to expose a template route or ship a static file"
+        >
+          <Download className="h-4 w-4 mr-1" />
+          Download Template
+        </a>
+      </div>
+      {busy && <div className="mt-3 text-sm text-gray-700">Processing…</div>}
+      {err && <div className="mt-3 text-sm text-red-600">Error: {err}</div>}
+    </div>
+  );
+};
+
+/** ============ Page ============ */
+const IrrigationPage: React.FC = () => {
+  const [loadingForm, setLoadingForm] = useState(false);
+  const [recommendVisible, setRecommendVisible] = useState(false);
+
+  const [ranked, setRanked] = useState<RankedIrrigation[] | null>(null);
+  const [yieldInfo, setYieldInfo] = useState<YieldResp | null>(null);
+  const [farmers, setFarmers] = useState<FarmerContact[]>([]);
+  const [alertsBusy, setAlertsBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Keep last submitted form (for calculators)
+  const [lastForm, setLastForm] = useState<IrrigationForm | null>(null);
+
+  const fetchYield = async (f: IrrigationForm) => {
+    const res = await fetch(`${API_BASE}/predict/by_keys`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        crop: f.crop,
+        state: f.state,
+        district: f.district,
+        year: f.year,
+        include_full_row: false,
+        include_engineered: false
+      })
+    });
+    if (!res.ok) throw new Error(`Yield API ${res.status}`);
+    const data = await res.json();
+    return { yhat_kg_ha: data.yhat_kg_ha, y_std_kg_ha: data.y_std_kg_ha ?? null } as YieldResp;
+  };
+// Accept both: single decision or ranked array (adapter)
+const fetchIrrigationRanked = async (f: IrrigationForm) => {
+  const payload = {
+    soilMoisture: f.soilMoisturePct,
+    temperature: f.temperatureC,
+    humidity: f.humidityPct,
+    rainfallTomorrow: f.rainTomorrowMm,
+    rainfallDayAfter: f.rainDayAfterMm,
+    crop: f.crop,
+    soilPh: f.soilPh,
+    soilTexture: f.soilTexture,
+    organicCarbon: f.organicCarbon,
+  };
+
+  const res = await fetch(`${API_BASE}/irrigation/decision`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error(`Decision API ${res.status}`);
+  const data: RecommendApiResp = await res.json();
+
+  // If API returns { ranked: [...] }
+  if ("ranked" in data && Array.isArray(data.ranked)) {
+    return data.ranked;
+  }
+
+  // If API returns { decision, reason, confidence } only → create a simple ranking
+  if ("decision" in data) {
+    const ranked: RankedIrrigation[] = [
+      {
+        method: data.decision === "irrigate" ? "Surface" : "Wait",
+        score: data.decision === "irrigate" ? 0.7 : 0.6,
+        reason: data.reason
+      }
+    ];
+    return ranked;
+  }
+
+  // Default: nothing useful from API
+  return [];
+};
+
+
+  const fetchNearbyFarmers = async (f: IrrigationForm) => {
+    // If you have GPS, pass coordinates; else pass state/district
+    const res = await fetch(`${API_BASE}/farmers/nearby?state=${encodeURIComponent(f.state)}&district=${encodeURIComponent(f.district)}&radius_km=15`);
+    if (!res.ok) {
+      // graceful fallback — optional static examples if backend not available
+      return [
+        { id: "f1", name: "Ravi Kumar", phone: "9999990001", distance_km: 3.2, crops: ["Rice"], hasPump: true, notes: "Available evenings" },
+        { id: "f2", name: "Sita Devi", phone: "9999990002", distance_km: 5.1, crops: ["Rice","Wheat"], hasPump: false, notes: "Can share labor" },
+      ] as FarmerContact[];
+    }
+    const data = await res.json();
+    return data as FarmerContact[];
+  };
+
+  const onFormSubmit = async (f: IrrigationForm) => {
+    setError(null);
+    setLoadingForm(true);
+    setRecommendVisible(false);
+    try {
+      const [yInfo, rankedList, neighbors] = await Promise.all([
+        fetchYield(f),
+        fetchIrrigationRanked(f),
+        fetchNearbyFarmers(f)
+      ]);
+      setYieldInfo(yInfo);
+      setRanked(rankedList);
+      setFarmers(neighbors);
+      setRecommendVisible(true);
+      setLastForm(f);
+    } catch (e: any) {
+      setError(e?.message || "Something failed");
+      setRecommendVisible(false);
+      setYieldInfo(null);
+      setRanked(null);
+    } finally {
+      setLoadingForm(false);
+    }
+  };
+
+  // Quick actions -> wire to your alerts endpoints
+  const startPumpAlert = async () => {
+    setAlertsBusy(true);
+    try {
+      await fetch(`${API_BASE}/alerts/start_pump`, { method: "POST" });
+      window.alert("Start Pump alert sent ✅");
+    } catch {
+      window.alert("Failed to send Start Pump alert");
+    } finally {
+      setAlertsBusy(false);
+    }
+  };
+  const lowPressureAlert = async () => {
+    setAlertsBusy(true);
+    try {
+      await fetch(`${API_BASE}/alerts/low_pressure`, { method: "POST" });
+      window.alert("Low Pressure alert sent ⚠️");
+    } catch {
+      window.alert("Failed to send Low Pressure alert");
+    } finally {
+      setAlertsBusy(false);
+    }
+  };
+  const weatherAlert = async () => {
+    setAlertsBusy(true);
+    try {
+      await fetch(`${API_BASE}/alerts/weather_subscribe`, { method: "POST" });
+      window.alert("Weather alerts subscribed 🌧");
+    } catch {
+      window.alert("Failed to subscribe to Weather alerts");
+    } finally {
+      setAlertsBusy(false);
+    }
+  };
+
+  // For a subtle header showing context if we have last form
+  const context = useMemo(() => {
+    if (!lastForm) return null;
+    return (
+      <div className="bg-white rounded-2xl shadow-lg border border-green-100 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-4">
+            <h1 className="text-2xl font-bold text-green-700 flex items-center">
+              <Cloud className="h-6 w-6 mr-2" />
+              Irrigation & Weather
+            </h1>
+            <div className="flex items-center space-x-2 text-sm text-gray-600">
+              <MapPin className="h-4 w-4" />
+              <span>{lastForm.district}, {lastForm.state}</span>
+              <span>•</span>
+              <span>Crop: {lastForm.crop}</span>
+              <span>•</span>
+              <span>Year: {lastForm.year}</span>
+            </div>
+          </div>
+          <div className="bg-green-100 px-3 py-1 rounded-full">
+            <span className="text-sm font-medium text-green-700">Ready</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-blue-50 rounded-lg p-3">
+            <div className="flex items-center mb-1">
+              <Calendar className="h-4 w-4 text-blue-600 mr-2" />
+              <span className="font-semibold text-blue-800">Soil</span>
+            </div>
+            <div className="text-sm text-blue-700">
+              pH {lastForm.soilPh} • {lastForm.soilTexture.replace("_", " ")} • OC {lastForm.organicCarbon}%
+            </div>
+          </div>
+
+          <div className="bg-orange-50 rounded-lg p-3">
+            <div className="font-semibold text-orange-800 mb-1">Sensors</div>
+            <div className="text-sm text-orange-700">
+              Moist {lastForm.soilMoisturePct}% • Temp {lastForm.temperatureC}°C • RH {lastForm.humidityPct}%
+            </div>
+          </div>
+
+          <div className="bg-yellow-50 rounded-lg p-3">
+            <div className="flex items-center mb-1">
+              <Cloud className="h-4 w-4 text-yellow-600 mr-2" />
+              <span className="font-semibold text-yellow-800">Rain (next 2 days)</span>
+            </div>
+            <div className="text-sm text-yellow-700">
+              {lastForm.rainTomorrowMm} mm • {lastForm.rainDayAfterMm} mm
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }, [lastForm]);
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      {/* Layout with sidebar quick actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+        <div className="space-y-6">
+          {/* 1) Soil Analysis Form (required first) */}
+          <SoilAnalysisForm onSubmit={onFormSubmit} loading={loadingForm} />
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
+              {error}
+            </div>
+          )}
+
+          {/* Optional header context once submitted */}
+          {context}
+
+          {/* 2) Recommendations (only after submit) */}
+          {recommendVisible && ranked && (
+            <RankedTable ranked={ranked} yieldInfo={yieldInfo} />
+          )}
+
+          {/* 3) Expandables: Energy/Cost + Nearby Farmers + CSV batch */}
+          {recommendVisible && (
+            <div className="space-y-6">
+              <EnergyCostCalculator
+                powerKW={lastForm?.powerKW}
+                tariffPerKwh={lastForm?.tariffPerKwh}
+                hoursPerIrrigation={lastForm?.hoursPerIrrigation}
+              />
+              <NearbyFarmers farmers={farmers} />
+              <CsvBatchUpload />
+            </div>
+          )}
+        </div>
+
+        {/* Sidebar quick actions */}
+        <div>
+          <QuickActionsToolbar
+            onStartPump={startPumpAlert}
+            onLowPressure={lowPressureAlert}
+            onWeatherAlert={weatherAlert}
+            busy={alertsBusy}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default IrrigationPage;
