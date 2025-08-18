@@ -1,1 +1,0 @@
-{"algo": "kmeans", "k": 3, "preset": "climate", "features_include": [], "features_exclude": [], "filters": {"year_min": 2000, "year_max": 2005}, "standardize": true, "reduce_to_2d": "pca", "random_state": 42, "max_iter": 300, "eps": 0.5, "min_samples": 5, "created_at": 1755500417.8476532}
