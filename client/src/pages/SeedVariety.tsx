@@ -32,6 +32,8 @@ const SeedVariety: React.FC = () => {
   const [showCompareModal, setShowCompareModal] = useState(false);
   const [showEvidenceModal, setShowEvidenceModal] = useState<number | null>(null);
   const [showConfidenceModal, setShowConfidenceModal] = useState(false);
+  const [plannedVarieties, setPlannedVarieties] = useState<Set<number>>(new Set());
+  const [toasts, setToasts] = useState<Array<{ id: string; text: string; type: 'success' | 'info' | 'warn' }>>([]);
   const [currentSettings, setCurrentSettings] = useState({
     irrigation: 'limited',
     riskStance: 50,
@@ -49,6 +51,14 @@ const SeedVariety: React.FC = () => {
     soilPh: 6.4,
     organicCarbon: 0.55,
     soilType: 'Loam'
+  };
+
+  const pushToast = (text: string, type: 'success' | 'info' | 'warn' = 'success') => {
+    const id = crypto.randomUUID();
+    setToasts((prev) => [...prev, { id, text, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3000);
   };
 
   // Simple image fallbacks based on variety/name keywords
@@ -768,12 +778,21 @@ const SeedVariety: React.FC = () => {
 
                 {/* Actions */}
                 <div className="flex flex-wrap gap-3">
-                  <button className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-medium flex items-center transition-colors">
+                  <button
+                    onClick={() => {
+                      setPlannedVarieties((prev) => new Set(prev).add(variety.id));
+                      pushToast(`${variety.name} added to Season Plan`, 'success');
+                    }}
+                    className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-medium flex items-center transition-colors"
+                  >
                     <CheckCircle className="h-4 w-4 mr-2" />
                     Select
                   </button>
                   <button 
-                    onClick={() => toggleCompare(variety.id)}
+                    onClick={() => {
+                      toggleCompare(variety.id);
+                      pushToast(`Selected for comparison: ${variety.name}`, 'info');
+                    }}
                     className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-colors"
                   >
                     <BarChart3 className="h-4 w-4 mr-2" />
@@ -794,19 +813,31 @@ const SeedVariety: React.FC = () => {
 
                 {/* Dealer Actions */}
                 <div className="flex flex-wrap gap-3 mt-3">
-                  <button className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium flex items-center text-sm transition-colors">
+                  <button
+                    onClick={() => pushToast(`Calling ${variety.dealer.name}…`, 'info')}
+                    className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium flex items-center text-sm transition-colors"
+                  >
                     <Phone className="h-4 w-4 mr-2" />
                     Call Dealer
                   </button>
-                  <button className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium flex items-center text-sm transition-colors">
+                  <button
+                    onClick={() => pushToast('Opening maps…', 'info')}
+                    className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium flex items-center text-sm transition-colors"
+                  >
                     <Navigation className="h-4 w-4 mr-2" />
                     Navigate
                   </button>
-                  <button className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium flex items-center text-sm transition-colors">
+                  <button
+                    onClick={() => pushToast('Saved offline', 'success')}
+                    className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium flex items-center text-sm transition-colors"
+                  >
                     <Download className="h-4 w-4 mr-2" />
                     Save Offline
                   </button>
-                  <button className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium flex items-center text-sm transition-colors">
+                  <button
+                    onClick={() => pushToast('Shared to WhatsApp (demo)', 'success')}
+                    className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium flex items-center text-sm transition-colors"
+                  >
                     <Share className="h-4 w-4 mr-2" />
                     Share
                   </button>
@@ -827,23 +858,55 @@ const SeedVariety: React.FC = () => {
         {/* Action Footer */}
         <div className="bg-white rounded-xl shadow-lg p-6 border-t-4 border-green-500">
           <div className="flex flex-wrap justify-center gap-4">
-            <button className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 rounded-lg font-bold text-lg flex items-center shadow-lg transition-colors">
+            <button
+              onClick={() => {
+                if (plannedVarieties.size === 0) {
+                  pushToast('Select at least one variety first', 'warn');
+                } else {
+                  pushToast(`Added ${plannedVarieties.size} variety(ies) to Season Plan`, 'success');
+                }
+              }}
+              className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 rounded-lg font-bold text-lg flex items-center shadow-lg transition-colors"
+            >
               <Plus className="h-5 w-5 mr-3" />
               Add Chosen Variety to Season Plan
             </button>
-            <button className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium flex items-center transition-colors">
+            <button
+              onClick={() => pushToast('Downloading advisory…', 'info')}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium flex items-center transition-colors"
+            >
               <Download className="h-4 w-4 mr-2" />
               Download Advisory (PDF)
             </button>
-            <button className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium flex items-center transition-colors">
+            <button
+              onClick={() => pushToast('Shared to WhatsApp', 'success')}
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium flex items-center transition-colors"
+            >
               <Share className="h-4 w-4 mr-2" />
               Share to WhatsApp
             </button>
-            <button className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-medium flex items-center transition-colors">
+            <button
+              onClick={() => pushToast('Calling nearest dealer…', 'info')}
+              className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-medium flex items-center transition-colors"
+            >
               <Phone className="h-4 w-4 mr-2" />
               Call Nearest Dealer
             </button>
           </div>
+        </div>
+
+        {/* Toasts */}
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 space-y-2 w-[90%] max-w-md">
+          {toasts.map((t) => (
+            <div
+              key={t.id}
+              className={`rounded-lg px-4 py-2 shadow-lg text-white ${
+                t.type === 'success' ? 'bg-green-600' : t.type === 'warn' ? 'bg-yellow-600' : 'bg-blue-600'
+              }`}
+            >
+              {t.text}
+            </div>
+          ))}
         </div>
 
         {/* Compare Modal */}
