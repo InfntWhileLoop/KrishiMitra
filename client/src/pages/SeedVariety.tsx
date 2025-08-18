@@ -13,6 +13,7 @@ interface Variety {
   traits: string[];
   risks: string;
   requirements: string;
+  imageUrl?: string;
   dealer: {
     name: string;
     distance: string;
@@ -50,6 +51,24 @@ const SeedVariety: React.FC = () => {
     soilType: 'Loam'
   };
 
+  // Simple image fallbacks based on variety/name keywords
+  const VARIETY_FALLBACKS: Record<string, string> = {
+    sahbhagi: 'https://images.unsplash.com/photo-1589927986089-35812388d1d1?q=80&w=1200&auto=format&fit=crop',
+    ir64: 'https://images.unsplash.com/photo-1599050751795-5b4a5a0f3279?q=80&w=1200&auto=format&fit=crop',
+    swarna: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=1200&auto=format&fit=crop',
+    rice: 'https://images.unsplash.com/photo-1604335399105-0d4f1be8472c?q=80&w=1200&auto=format&fit=crop',
+    generic: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop'
+  };
+
+  const getVarietyFallback = (name: string): string => {
+    const n = name.toLowerCase();
+    if (n.includes('sahbhagi')) return VARIETY_FALLBACKS.sahbhagi;
+    if (n.includes('ir-64') || n.includes('ir 64')) return VARIETY_FALLBACKS.ir64;
+    if (n.includes('swarna')) return VARIETY_FALLBACKS.swarna;
+    if (n.includes('rice') || n.includes('dhan')) return VARIETY_FALLBACKS.rice;
+    return VARIETY_FALLBACKS.generic;
+  };
+
   const varieties: Variety[] = [
     {
       id: 1,
@@ -62,6 +81,7 @@ const SeedVariety: React.FC = () => {
       traits: ['Heat-tolerant', 'Drought-tolerant', 'BLB-resistant'],
       risks: 'Lower performance under standing water > 5 days',
       requirements: 'Needs 60–80 kg N/ha; prefers 20–25 cm spacing',
+      imageUrl: '/varieties/sahbhagi.png',
       dealer: {
         name: 'Patna Agro Seeds',
         distance: '7 km',
@@ -84,6 +104,7 @@ const SeedVariety: React.FC = () => {
       traits: ['High-yielding', 'Disease-resistant'],
       risks: 'Susceptible to heat stress during flowering',
       requirements: 'Requires assured irrigation; 80-100 kg N/ha',
+      imageUrl: '/varieties/ir64.png', // will auto-try .jpg/.jpeg if not found
       dealer: {
         name: 'Bihar Seeds Co.',
         distance: '12 km',
@@ -106,6 +127,7 @@ const SeedVariety: React.FC = () => {
       traits: ['Premium grain', 'Flood-tolerant'],
       risks: 'Long duration increases pest exposure risk',
       requirements: 'Prefers deep water; 70-90 kg N/ha',
+      imageUrl: '/varieties/swarna.png', // will auto-try .jpg/.jpeg if not found
       dealer: {
         name: 'Hajipur Agro',
         distance: '18 km',
@@ -529,15 +551,42 @@ const SeedVariety: React.FC = () => {
 
           {varieties.map((variety, index) => (
             <div key={variety.id} className={`bg-white rounded-xl shadow-lg border-l-4 ${getBorderColor(index)} overflow-hidden`}>
-              {/* Header */}
-              <div className={`bg-gradient-to-r ${getGradientColor(index)} px-6 py-4`}>
-                <div className="flex items-center justify-between mb-2">
+              {/* Header with background image */}
+              <div className="relative px-6 py-6 rounded-t-xl overflow-hidden">
+                {/* Background image */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={variety.imageUrl || getVarietyFallback(variety.name)}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover object-bottom"
+                  data-try="png"
+                  onError={(e) => {
+                    const target = e.currentTarget as HTMLImageElement;
+                    const tried = target.getAttribute('data-try') || 'png';
+                    if (tried === 'png' && /\.png(\?.*)?$/i.test(target.src)) {
+                      target.setAttribute('data-try', 'jpg');
+                      target.src = target.src.replace(/\.png(\?.*)?$/i, '.jpg$1');
+                      return;
+                    }
+                    if (tried === 'jpg' && /\.jpg(\?.*)?$/i.test(target.src)) {
+                      target.setAttribute('data-try', 'jpeg');
+                      target.src = target.src.replace(/\.jpg(\?.*)?$/i, '.jpeg$1');
+                      return;
+                    }
+                    const fb = getVarietyFallback(variety.name);
+                    if (target.src !== fb) target.src = fb;
+                  }}
+                />
+                {/* Overlay for readability */}
+                <div className="absolute inset-0 bg-gradient-to-r from-black/50 to-black/20" />
+
+                <div className="relative z-10 flex items-center justify-between mb-2">
                   <div className="flex items-center space-x-3">
                     <span className={`${getRankColor(index)} text-white px-3 py-1 rounded-full text-sm font-bold`}>
                       #{index + 1} of 10
                     </span>
-                    <h3 className="text-xl font-bold text-gray-800">{variety.name}</h3>
-                    <span className="text-sm text-gray-600">({variety.code})</span>
+                    <h3 className="text-xl font-bold text-white">{variety.name}</h3>
+                    <span className="text-sm text-white/80">({variety.code})</span>
                   </div>
                   <div className="flex space-x-2">
                     <button
@@ -553,14 +602,14 @@ const SeedVariety: React.FC = () => {
                     </button>
                   </div>
                 </div>
-                
+
                 {/* Trait Chips */}
-                <div className="flex flex-wrap gap-2">
-                  <span className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm">
+                <div className="relative z-10 flex flex-wrap gap-2">
+                  <span className="bg-orange-100/90 text-orange-900 px-3 py-1 rounded-full text-sm">
                     {variety.maturity} days
                   </span>
                   {variety.traits.map((trait, i) => (
-                    <span key={i} className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
+                    <span key={i} className="bg-green-100/90 text-green-900 px-3 py-1 rounded-full text-sm">
                       {trait}
                     </span>
                   ))}
