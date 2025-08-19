@@ -24,6 +24,7 @@ from app.crop_yield_predictor.models import train_yield_model, predict_yield, lo
 >>>>>>> a4a1021 (Initial commit with changes)
 
 # Configure logging
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
