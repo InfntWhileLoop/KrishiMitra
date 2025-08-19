@@ -8,7 +8,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
+<<<<<<< HEAD
 from routers import seedrec, cluster
+=======
+from app.routers import seedrec, cluster
+
+>>>>>>> a4a1021 (Initial commit with changes)
 
 # Load environment variables
 load_dotenv()

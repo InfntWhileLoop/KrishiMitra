@@ -13,9 +13,15 @@ import logging
 import pandas as pd
 from pathlib import Path
 
+<<<<<<< HEAD
 from crop_yield_predictor.data_loader import load_icrisat, load_climate, create_variety_traits_template
 from crop_yield_predictor.features import build_training_table, add_seasonal_features
 from crop_yield_predictor.models import train_yield_model, predict_yield, load_trained_model
+=======
+from app.crop_yield_predictor.data_loader import load_icrisat, load_climate, create_variety_traits_template
+from app.crop_yield_predictor.features import build_training_table, add_seasonal_features
+from app.crop_yield_predictor.models import train_yield_model, predict_yield, load_trained_model
+>>>>>>> a4a1021 (Initial commit with changes)
 
 # Configure logging
 logging.basicConfig(

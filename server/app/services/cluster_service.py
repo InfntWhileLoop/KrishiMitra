@@ -20,8 +20,13 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_score
 import joblib
 
+<<<<<<< HEAD
 from services.data_access import load_climate_features, load_yield_table, IDENTIFIER_COLUMNS
 from services.cache import SimpleCache
+=======
+from app.services.data_access import load_climate_features, load_yield_table, IDENTIFIER_COLUMNS
+from app.services.cache import SimpleCache
+>>>>>>> a4a1021 (Initial commit with changes)
 
 try:
 	import umap  # type: ignore

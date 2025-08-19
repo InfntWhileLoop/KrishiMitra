@@ -8,7 +8,11 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+<<<<<<< HEAD
 from services.cluster_service import ClusterService
+=======
+from app.services.cluster_service import ClusterService
+>>>>>>> a4a1021 (Initial commit with changes)
 
 router = APIRouter()
 service = ClusterService()

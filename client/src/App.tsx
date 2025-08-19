@@ -13,7 +13,11 @@ import Cluster from './pages/Cluster';
 import PestDisease from './pages/PestDisease';
 import GovernmentSchemes from './pages/GovernmentSchemes';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+<<<<<<< HEAD
 
+=======
+import { Toaster } from 'react-hot-toast';
+>>>>>>> a4a1021 (Initial commit with changes)
 function AppContent() {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -54,8 +58,16 @@ function App() {
   return (
     <AuthProvider>
       <AppContent />
+<<<<<<< HEAD
+=======
+      <Toaster position="top-right" />  {/* ✅ add here */}
+>>>>>>> a4a1021 (Initial commit with changes)
     </AuthProvider>
   );
 }
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> a4a1021 (Initial commit with changes)
 export default App;

@@ -9,9 +9,15 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel, Field
 import pandas as pd
 
+<<<<<<< HEAD
 from services.traits_service import TraitsService
 from services.seedrec_service import SeedRecService
 from services.yield_infer import YieldInferenceService
+=======
+from app.services.traits_service import TraitsService
+from app.services.seedrec_service import SeedRecService
+from app.services.yield_infer import YieldInferenceService
+>>>>>>> a4a1021 (Initial commit with changes)
 
 # Create router
 router = APIRouter()

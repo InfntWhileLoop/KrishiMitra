@@ -9,8 +9,13 @@ import numpy as np
 from typing import Dict, List, Optional
 from functools import lru_cache
 
+<<<<<<< HEAD
 from src.seedrec.scoring import score_variety, create_explanation
 from services.yield_infer import YieldInferenceService
+=======
+from app.src.seedrec.scoring import score_variety, create_explanation
+from app.services.yield_infer import YieldInferenceService
+>>>>>>> a4a1021 (Initial commit with changes)
 
 class SeedRecService:
     """Service for seed variety recommendations"""

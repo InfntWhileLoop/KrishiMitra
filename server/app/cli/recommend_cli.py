@@ -18,8 +18,13 @@ try:
 except ImportError:
     # Fallback for direct execution
     sys.path.insert(0, str(Path(__file__).parent.parent))
+<<<<<<< HEAD
     from src.seedrec.traits import load_traits, validate_traits
     from src.seedrec.recommend import recommend_varieties, save_recommendations
+=======
+    from app.src.seedrec.traits import load_traits, validate_traits
+    from app.src.seedrec.recommend import recommend_varieties, save_recommendations
+>>>>>>> a4a1021 (Initial commit with changes)
 
 # Configure logging
 logging.basicConfig(
